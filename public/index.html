@@ -89,9 +89,15 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
 <section>
   <h2><b>2</b>Your audio</h2>
   <p class="muted">One take, all the voices. Your audio never leaves your device. Make each character sound clearly different (higher, lower, raspier). Record close and clean; the app adds distance and room effects.</p>
-  <div class="row">
+  <div class="row"><button class="sec" id="modeRec" style="background:var(--sun)">🎙 Upload my recording</button><button class="sec" id="modeType">⌨ Type it instead</button></div>
+  <div id="recPane"><div class="row">
     <label>Voice recording <input type="file" id="audio" accept="audio/*,video/*"></label>
     <span id="audioMsg" class="muted"></span>
+  </div></div>
+  <div id="typePane" style="display:none">
+    <p class="muted">Write one line per row as <b>Name: what they say</b>. Add a mood in brackets: <i>(excited)</i>, <i>(calm)</i>, <i>(angry)</i>, <i>(deadpan)</i>. Characters speak in the MasterBuilder91 voice. Unlimited plan.</p>
+    <textarea id="script" style="min-height:140px" placeholder="Abu Salman: Yo. Who ate my last hot pocket?&#10;Darnell (deadpan): I don't know what a hot pocket is.&#10;Abu Salman (angry): It was IN THE FREEZER, Darnell."></textarea>
+    <div class="row"><button id="ttsBtn">Make the voices</button><span id="ttsMsg" class="muted"></span></div>
   </div>
   <div class="row">
     <label>Format <select id="format"><option value="bit">Two-person bit</option><option value="monologue">Monologue / rant</option><option value="confessional">Reality show + confessionals</option><option value="news">News parody</option></select></label>

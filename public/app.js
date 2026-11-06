@@ -120,6 +120,37 @@ function envelope(buf){
   return out;
 }
 
+// ---------- type it instead (paid: typed script -> owner's voice) ----------
+function setMode(m){$('recPane').style.display=m==='rec'?'block':'none';$('typePane').style.display=m==='type'?'block':'none';$('modeRec').style.background=m==='rec'?'var(--sun)':'#fff';$('modeType').style.background=m==='type'?'var(--sun)':'#fff';$('transcribeBtn').parentElement.style.display=m==='rec'?'flex':'none';$('doWords').parentElement.parentElement.style.display=m==='rec'?'flex':'none';}
+$('modeRec').onclick=()=>setMode('rec');$('modeType').onclick=()=>setMode('type');
+function parseScript(txt){
+  const out=[];const names=S.chars.map(c=>({c,n:c.name.toLowerCase()}));
+  for(const raw of txt.split(/\n+/)){const m=/^\s*([^:(]{1,40}?)\s*(?:\(([^)]*)\))?\s*:\s*(.+)$/.exec(raw);if(!m)continue;
+    const nm=m[1].trim().toLowerCase();const hit=names.find(x=>x.n===nm)||names.find(x=>x.n.startsWith(nm)||nm.startsWith(x.n.split(' ')[0]));
+    out.push({char:hit?hit.c.id:null,name:m[1].trim(),style:(m[2]||'normal').trim().toLowerCase(),text:m[3].trim()});}
+  return out;
+}
+$('ttsBtn').onclick=async()=>{
+  const lines=parseScript($('script').value);if(!lines.length){$('ttsMsg').innerHTML='<span class="err">Write lines like "Name: what they say".</span>';return;}
+  const missing=[...new Set(lines.filter(l=>!l.char).map(l=>l.name))];
+  if(missing.length){$('ttsMsg').innerHTML=`<span class="err">No character named ${esc(missing.join(', '))}. Add them in step 1 or fix the name.</span>`;return;}
+  $('ttsBtn').disabled=true;$('ttsMsg').textContent='Recording the voices…';
+  try{
+    const d=await api('/api/tts',{lines:lines.map(l=>({text:l.text,style:l.style}))});
+    const ctx=AC();const bufs=[];for(const b64 of d.audio){const bin=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));bufs.push(await ctx.decodeAudioData(bin.buffer));}
+    const gap=.35,lead=.3;let t=lead;const placed=bufs.map(b=>{const st=t;t+=b.duration+gap;return st;});
+    const total=t+.3,out=new OfflineAudioContext(2,Math.ceil(total*SR),SR);
+    bufs.forEach((b,i)=>{const src=out.createBufferSource();src.buffer=b;src.connect(out.destination);src.start(placed[i]);});
+    S.voice=await out.startRendering();S.env=envelope(S.voice);S.file=null;
+    S.lines=lines.map((l,i)=>({spk:l.char,char:l.char,start:placed[i],end:placed[i]+bufs[i].duration,text:l.text,fx:'none'}));
+    S.spkMap={};[...new Set(S.lines.map(l=>l.char))].forEach(id=>S.spkMap[id]=id);
+    renderLines();invalidate();
+    $('ttsMsg').innerHTML=`<span class="ok">${lines.length} lines voiced (${fmt(S.voice.duration)}). Typed-script use this month: ${d.charsUsed.toLocaleString()}/${d.charsLimit.toLocaleString()} characters.</span>`;
+    $('planBtn').disabled=$('autoBtn').disabled=false;
+  }catch(e){$('ttsMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}
+  $('ttsBtn').disabled=false;
+};
+
 // ---------- find voices (all on-device) ----------
 async function resample(buf,rate){const n=Math.ceil(buf.duration*rate);const ctx=new OfflineAudioContext(1,n,rate);const src=ctx.createBufferSource();src.buffer=buf;src.connect(ctx.destination);src.start();const r=await ctx.startRendering();return r.getChannelData(0);}
 function segmentsFrom(x,rate){
