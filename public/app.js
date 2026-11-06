@@ -104,10 +104,27 @@ $('selfie').onchange=async e=>{
 // ---------- audio ----------
 let actx;const AC=()=>actx||(actx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:SR}));
 async function decode(file){const buf=await file.arrayBuffer();return await AC().decodeAudioData(buf);}
-$('audio').onchange=async e=>{
-  const f=e.target.files[0];if(!f)return;S.file=f;$('audioMsg').textContent='Loading…';
+async function loadVoiceFile(f){
+  S.file=f;$('audioMsg').textContent='Loading…';
   try{S.voice=await decode(f);$('audioMsg').innerHTML=`<span class="ok">${fmt(S.voice.duration)} loaded</span>`;$('transcribeBtn').disabled=false;S.env=envelope(S.voice);}
   catch(err){$('audioMsg').innerHTML=`<span class="err">Couldn't read that file. Try MP3, WAV or M4A.</span>`;}
+}
+$('audio').onchange=e=>{const f=e.target.files[0];if(f)loadVoiceFile(f);};
+// record straight from the mic
+let rec=null;
+$('recBtn').onclick=async()=>{
+  if(rec){rec.mr.stop();return;}
+  if(!navigator.mediaDevices||!window.MediaRecorder){$('audioMsg').innerHTML='<span class="err">This browser can\'t record. Use "Choose a file" instead.</span>';return;}
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:true,autoGainControl:true}});}
+  catch(e){$('audioMsg').innerHTML='<span class="err">Microphone blocked. Allow mic access for this site in your browser settings, then try again.</span>';return;}
+  const type=['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg'].find(t=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t))||'';
+  const mr=new MediaRecorder(stream,type?{mimeType:type}:undefined),chunks=[],t0=Date.now();
+  mr.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
+  mr.onstop=()=>{clearInterval(rec.timer);stream.getTracks().forEach(t=>t.stop());rec=null;$('recBtn').textContent='🔴 Record again';$('recTime').textContent='';
+    const mt=mr.mimeType||type||'audio/webm',ext=mt.includes('mp4')?'m4a':mt.includes('ogg')?'ogg':'webm';
+    loadVoiceFile(new File(chunks,`my-take.${ext}`,{type:mt}));};
+  mr.start(1000);rec={mr,timer:setInterval(()=>{$('recTime').textContent='Recording '+fmt((Date.now()-t0)/1000);},250)};
+  $('recBtn').textContent='⏹ Stop';$('audioMsg').textContent='';$('recTime').textContent='Recording 0:00';
 };
 $('music').onchange=async e=>{const f=e.target.files[0];S.music=f?await decode(f):null;S.mix=null;};
 $('musicVol').oninput=()=>{S.mix=null;};

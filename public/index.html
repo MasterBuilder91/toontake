@@ -89,9 +89,11 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
 <section>
   <h2><b>2</b>Your audio</h2>
   <p class="muted">One take, all the voices. Your audio never leaves your device. Make each character sound clearly different (higher, lower, raspier). Record close and clean; the app adds distance and room effects.</p>
-  <div class="row"><button class="sec" id="modeRec" style="background:var(--sun)">🎙 Upload my recording</button><button class="sec" id="modeType">⌨ Type it instead</button></div>
+  <div class="row"><button class="sec" id="modeRec" style="background:var(--sun)">🎙 Use my voice</button><button class="sec" id="modeType">⌨ Type it instead</button></div>
   <div id="recPane"><div class="row">
-    <label>Voice recording <input type="file" id="audio" accept="audio/*,video/*"></label>
+    <button id="recBtn">🔴 Record now</button>
+    <label class="pill" style="cursor:pointer;padding:9px 14px">📁 Choose a file<input type="file" id="audio" accept="audio/*,video/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" hidden></label>
+    <span id="recTime" class="muted"></span>
     <span id="audioMsg" class="muted"></span>
   </div></div>
   <div id="typePane" style="display:none">
