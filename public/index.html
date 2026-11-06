@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ToonTake — talk it, toon it</title>
+<style>
+:root{--ink:#1a1210;--paper:#fff8e8;--sun:#f2c230;--red:#d23a2a;--blue:#2f5f9a;--mut:#7b6a58}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--paper);color:var(--ink)}
+header{background:var(--ink);color:var(--sun);padding:14px 20px;display:flex;align-items:center;gap:14px}
+header h1{margin:0;font-family:"Arial Black",Impact,sans-serif;font-size:26px;letter-spacing:.5px}
+header span{color:#e8dcc4;font-size:14px}
+main{max-width:1100px;margin:0 auto;padding:18px}
+section{background:#fff;border:3px solid var(--ink);border-radius:14px;padding:16px 18px;margin-bottom:18px;box-shadow:5px 5px 0 var(--ink)}
+section h2{margin:0 0 10px;font-family:"Arial Black",Impact,sans-serif;font-size:20px}
+section h2 b{display:inline-block;background:var(--sun);border:2px solid var(--ink);border-radius:50%;width:32px;height:32px;text-align:center;line-height:28px;margin-right:8px}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:8px 0}
+label{font-size:14px;font-weight:600}
+input[type=text],input[type=password],select,textarea{font:inherit;padding:7px 9px;border:2px solid var(--ink);border-radius:8px;background:#fff}
+textarea{width:100%;min-height:54px}
+button{font:inherit;font-weight:800;padding:9px 16px;border:3px solid var(--ink);border-radius:10px;background:var(--sun);cursor:pointer;box-shadow:3px 3px 0 var(--ink)}
+button.sec{background:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:active:not(:disabled){transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.muted{color:var(--mut);font-size:13px}
+.cast{display:flex;flex-wrap:wrap;gap:14px}
+.card{width:170px;border:2px solid var(--ink);border-radius:12px;overflow:hidden;background:#fffdf7;cursor:pointer}
+.card.sel{outline:4px solid var(--red)}
+.card img{width:100%;display:block;background:#e7cf9f}
+.card div{padding:6px 8px;font-weight:800;text-align:center}
+.card.add{display:flex;align-items:center;justify-content:center;min-height:200px;font-size:40px;color:var(--mut)}
+#editor{display:none;margin-top:14px;border-top:2px dashed var(--ink);padding-top:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.grid label{display:flex;flex-direction:column;gap:4px}
+.lines{max-height:380px;overflow:auto;border:2px solid var(--ink);border-radius:10px}
+.line{display:grid;grid-template-columns:70px 130px 1fr 120px;gap:8px;padding:6px 8px;border-bottom:1px solid #eee;align-items:center;font-size:14px}
+.line:nth-child(odd){background:#fffaf0}
+.scene{display:grid;grid-template-columns:80px 170px 1fr 30px;gap:8px;align-items:center;padding:4px 0}
+#stage{width:100%;max-width:960px;display:block;margin:8px auto;border:3px solid var(--ink);border-radius:10px;background:#000}
+.bar{height:16px;border:2px solid var(--ink);border-radius:8px;overflow:hidden;background:#fff}
+.bar i{display:block;height:100%;width:0;background:var(--red)}
+.err{color:#b3202c;font-weight:700}
+.ok{color:#2f7d4a;font-weight:700}
+.pill{display:inline-block;border:2px solid var(--ink);border-radius:20px;padding:2px 10px;font-size:13px;font-weight:700;background:#fff}
+#gate{position:fixed;inset:0;background:rgba(26,18,16,.92);display:flex;align-items:center;justify-content:center;z-index:9}
+#gate section{max-width:420px}
+video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
+</style>
+</head>
+<body>
+<div id="gate"><section><h2>Enter access code</h2><p class="muted">ToonTake is in private beta.</p><div class="row"><input id="code" type="password" placeholder="Access code"><button id="enter">Enter</button></div><p id="gateMsg" class="err"></p></section></div>
+<header><h1>TOONTAKE</h1><span>Talk it. Toon it. Upload your improv, get an episode.</span></header>
+<main>
+<section>
+  <h2><b>1</b>Your cast</h2>
+  <p class="muted">Tap a character to edit. Build one from a selfie or by hand. Characters save in this browser.</p>
+  <div class="cast" id="cast"></div>
+  <div id="editor">
+    <div class="row"><label>Name <input type="text" id="e_name"></label>
+      <label class="pill">📷 Build from selfie <input type="file" id="selfie" accept="image/*" hidden></label>
+      <span id="selfieMsg" class="muted"></span>
+      <button class="sec" id="delChar">Delete</button></div>
+    <div class="grid" id="fields"></div>
+  </div>
+</section>
+
+<section>
+  <h2><b>2</b>Your audio</h2>
+  <p class="muted">One take, all the voices. Make each character sound different and say names now and then. Record close and clean; the app adds distance and room effects.</p>
+  <div class="row">
+    <label>Voice recording <input type="file" id="audio" accept="audio/*,video/*"></label>
+    <span id="audioMsg" class="muted"></span>
+  </div>
+  <div class="row">
+    <label>Format <select id="format"><option value="bit">Two-person bit</option><option value="monologue">Monologue / rant</option><option value="confessional">Reality show + confessionals</option><option value="news">News parody</option></select></label>
+    <label>Speakers <select id="nspk"><option value="0">Auto</option><option>1</option><option selected>2</option><option>3</option><option>4</option></select></label>
+    <label>Shape <select id="aspect"><option value="16:9">16:9 YouTube</option><option value="9:16">9:16 TikTok/Reels</option></select></label>
+    <label><input type="checkbox" id="captions" checked> Captions</label>
+  </div>
+  <div class="row"><label>Music bed (optional) <input type="file" id="music" accept="audio/*"></label><label>Music volume <input type="range" id="musicVol" min="0" max="0.5" step="0.01" value="0.12"></label></div>
+  <label>Notes for the director (optional)</label>
+  <textarea id="notes" placeholder="e.g. 'This takes place in a laundromat. The second voice is a talking hot pocket.'"></textarea>
+  <div class="row"><button id="transcribeBtn" disabled>Transcribe</button><span id="trMsg" class="muted"></span></div>
+</section>
+
+<section>
+  <h2><b>3</b>Who's who</h2>
+  <p class="muted">Match each detected voice to a character. Fix any line that went to the wrong person.</p>
+  <div id="spkMap" class="row"></div>
+  <div class="lines" id="lines"><p class="muted" style="padding:8px">Transcribe your audio first.</p></div>
+  <div class="row"><button id="planBtn" disabled>Direct my episode</button><button class="sec" id="autoBtn" disabled>Quick auto-direct (free)</button><span id="planMsg" class="muted"></span></div>
+</section>
+
+<section>
+  <h2><b>4</b>Scene plan</h2>
+  <div id="planNotes" class="muted"></div>
+  <div class="row"><label>Title <input type="text" id="title" size="40"></label></div>
+  <div id="scenes"></div>
+  <div class="row"><button class="sec" id="addScene" disabled>+ Scene change</button></div>
+</section>
+
+<section>
+  <h2><b>5</b>Watch and export</h2>
+  <canvas id="stage" width="1280" height="720"></canvas>
+  <div class="row"><button id="playBtn" disabled>▶ Preview</button><button class="sec" id="stopBtn" disabled>■ Stop</button><button id="renderBtn" disabled>Render MP4</button><span id="renderMsg" class="muted"></span></div>
+  <div class="bar"><i id="prog"></i></div>
+  <div id="out" style="margin-top:12px"></div>
+  <p class="muted">Rendering happens on your device. Keep this tab open until it finishes. Works best in Chrome or Edge on a computer.</p>
+</section>
+</main>
+<script src="vendor/mp4-muxer.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
