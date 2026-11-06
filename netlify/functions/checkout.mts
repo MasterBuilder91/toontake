@@ -6,7 +6,7 @@ export default async (req: Request) => {
   const a = await account()
   if (!a) return Response.json({ error: "Please log in." }, { status: 401 })
   if (["trialing", "active"].includes(a.status)) return Response.json({ error: "You already have an active plan." }, { status: 400 })
-  const price = Netlify.env.get("STRIPE_PRICE_ID")
+  const price = Netlify.env.get("STRIPE_PRICE_ID") || "price_1UYvcqGARqvZQSiszGzlgk09"
   if (!price) return Response.json({ error: "STRIPE_PRICE_ID is not set." }, { status: 500 })
   const origin = new URL(req.url).origin
   const s = stripe()

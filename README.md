@@ -14,7 +14,7 @@ Upload an improvised voice recording (one take, all characters) and get a cartoo
 ## Environment variables (Netlify → Project configuration → Environment variables, scope: Functions)
 - `ANTHROPIC_API_KEY` — Claude API key.
 - `STRIPE_SECRET_KEY` — Stripe secret key (sk_test_… while testing).
-- `STRIPE_PRICE_ID` — the monthly price ID (price_…).
+- `STRIPE_PRICE_ID` — optional; defaults to the ToonTake Monthly price `price_1UYvcqGARqvZQSiszGzlgk09` ($9.99/month).
 - `STRIPE_WEBHOOK_SECRET` — signing secret of the webhook endpoint `https://<site>/api/stripe-webhook` (events: checkout.session.completed, customer.subscription.*).
 - `ADMIN_EMAILS` — comma-separated emails with unlimited free use (the owner).
 - Optional: `CLAUDE_MODEL`, `CLAUDE_MODEL_FAST`.
