@@ -1,7 +1,6 @@
 // Runs Whisper speech recognition on the user's own device (no server, no API).
 import { pipeline, env } from './vendor/transformers.min.js';
 env.allowLocalModels = false;
-env.backends.onnx.wasm.wasmPaths = new URL('./vendor/', import.meta.url).href;
 const MODEL = 'onnx-community/whisper-base_timestamped';
 let asr = null;
 async function load(){
