@@ -17,7 +17,7 @@ section h2{margin:0 0 10px;font-family:"Arial Black",Impact,sans-serif;font-size
 section h2 b{display:inline-block;background:var(--sun);border:2px solid var(--ink);border-radius:50%;width:32px;height:32px;text-align:center;line-height:28px;margin-right:8px}
 .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:8px 0}
 label{font-size:14px;font-weight:600}
-input[type=text],input[type=password],select,textarea{font:inherit;padding:7px 9px;border:2px solid var(--ink);border-radius:8px;background:#fff}
+input[type=text],input[type=email],input[type=password],select,textarea{font:inherit;padding:7px 9px;border:2px solid var(--ink);border-radius:8px;background:#fff}
 textarea{width:100%;min-height:54px}
 button{font:inherit;font-weight:800;padding:9px 16px;border:3px solid var(--ink);border-radius:10px;background:var(--sun);cursor:pointer;box-shadow:3px 3px 0 var(--ink)}
 button.sec{background:#fff}
@@ -49,8 +49,29 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
 </style>
 </head>
 <body>
-<div id="gate"><section><h2>Enter access code</h2><p class="muted">ToonTake is in private beta.</p><div class="row"><input id="code" type="password" placeholder="Access code"><button id="enter">Enter</button></div><p id="gateMsg" class="err"></p></section></div>
-<header><h1>TOONTAKE</h1><span>Talk it. Toon it. Upload your improv, get an episode.</span></header>
+<div id="gate"><section style="width:min(440px,92vw)">
+  <div id="authBox">
+    <h2 id="authTitle">Make cartoons from your voice</h2>
+    <p class="muted">Record an improvised bit, upload it, get an episode starring you. 7 days free, then $9.99/month. Cancel anytime.</p>
+    <div class="row"><input id="email" type="email" placeholder="Email" style="flex:1" autocomplete="email"></div>
+    <div class="row"><input id="password" type="password" placeholder="Password (8+ characters)" style="flex:1" autocomplete="current-password"></div>
+    <div class="row"><button id="loginBtn">Log in</button><button class="sec" id="signupBtn">Create account</button></div>
+    <p><a href="#" id="forgot" class="muted">Forgot password?</a></p>
+  </div>
+  <div id="subBox" style="display:none">
+    <h2>Start your free week</h2>
+    <p>7 days free, then <b>$9.99/month</b>. A card is required to start; you won't be charged until the trial ends, and you can cancel anytime before that.</p>
+    <p class="muted">Trial includes 3 AI-directed episodes and 5 selfie characters. Unlimited voice finding, quick auto-direct, previews and MP4 exports.</p>
+    <div class="row"><button id="trialBtn">Start free trial</button><button class="sec" id="billingBtn2" style="display:none">Fix billing</button><button class="sec" id="logoutBtn2">Log out</button></div>
+  </div>
+  <div id="resetBox" style="display:none">
+    <h2>Choose a new password</h2>
+    <div class="row"><input id="newPass" type="password" placeholder="New password" style="flex:1"></div>
+    <div class="row"><button id="resetBtn">Save password</button></div>
+  </div>
+  <p id="gateMsg" class="err"></p>
+</section></div>
+<header><h1>TOONTAKE</h1><span>Talk it. Toon it.</span><span id="acct" style="margin-left:auto;font-size:13px"></span><button class="sec" id="billingBtn" style="padding:4px 10px;display:none">Billing</button><button class="sec" id="logoutBtn" style="padding:4px 10px;display:none">Log out</button></header>
 <main>
 <section>
   <h2><b>1</b>Your cast</h2>
@@ -110,6 +131,7 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
   <p class="muted">Rendering happens on your device. Keep this tab open until it finishes. Works best in Chrome or Edge on a computer.</p>
 </section>
 </main>
+<script src="vendor/identity.js"></script>
 <script src="vendor/mp4-muxer.js"></script>
 <script src="engine.js"></script>
 <script src="app.js"></script>

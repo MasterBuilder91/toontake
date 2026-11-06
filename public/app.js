@@ -1,23 +1,54 @@
 (()=>{
 const $=id=>document.getElementById(id);
 const FPS=30,SR=48000;
-const S={code:localStorage.getItem('tt_code')||'',chars:[],sel:null,file:null,voice:null,music:null,lines:[],spkMap:{},plan:null,mix:null,env:null,busy:false};
+const S={me:null,chars:[],sel:null,file:null,voice:null,music:null,lines:[],spkMap:{},plan:null,mix:null,env:null,busy:false};
 try{S.chars=JSON.parse(localStorage.getItem('tt_chars')||'[]');}catch(e){}
 if(!S.chars.length)S.chars=[{...Toon.DEFAULT_TRAITS,id:'c1',name:'Abu Salman',headwear:'beanie',hwColor:'#c9b08e',beard:'jaw',eyes:'heavy'},{...Toon.DEFAULT_TRAITS,id:'c2',name:'Darnell',skin:'#5a3a26',hair:'fro',glasses:true,top:'hoodie',topColor:'#2f7d4a',pants:'jeans',pantsColor:'#3a5a8a',build:'big'}];
 const saveChars=()=>localStorage.setItem('tt_chars',JSON.stringify(S.chars));
 const charById=id=>S.chars.find(c=>c.id===id);
 
-// ---------- access gate ----------
-async function api(path,body,raw,headers){
-  const r=await fetch(path,{method:'POST',headers:{'x-access-code':S.code,...(raw?{}:{'content-type':'application/json'}),...(headers||{})},body:raw?body:JSON.stringify(body)});
+// ---------- account, login and billing ----------
+async function api(path,body){
+  const r=await fetch(path,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
   let d;try{d=await r.json();}catch(e){throw new Error(`Server error ${r.status}`);}
-  if(r.status===401){$('gate').style.display='flex';throw new Error(d.error||'Access code needed');}
+  if(r.status===401||r.status===402){refreshAccount();throw new Error(d.error||'Please log in');}
   if(!r.ok)throw new Error(d.error||`Error ${r.status}`);
   return d;
 }
-function enter(){S.code=$('code').value.trim();if(!S.code)return;localStorage.setItem('tt_code',S.code);$('gate').style.display='none';}
-$('enter').onclick=enter;$('code').onkeydown=e=>{if(e.key==='Enter')enter();};
-if(S.code)$('gate').style.display='none';
+const gateMsg=(t,ok)=>{$('gateMsg').className=ok?'ok':'err';$('gateMsg').textContent=t||'';};
+function showGate(which){$('gate').style.display=which?'flex':'none';['authBox','subBox','resetBox'].forEach(b=>$(b).style.display=b===which?'block':'none');}
+async function refreshAccount(){
+  let d;try{d=await (await fetch('/api/me',{credentials:'same-origin'})).json();}catch(e){d={user:null};}
+  S.me=d;const u=d.user;
+  $('logoutBtn').style.display=$('billingBtn').style.display=u?'inline-block':'none';
+  if(!u){$('acct').textContent='';showGate('authBox');return;}
+  const ok=['trialing','active'].includes(u.status);
+  let line=`${u.email} · `;
+  if(u.admin)line+='owner';
+  else if(u.status==='trialing'){const days=Math.max(0,Math.ceil((u.trialEnd-Date.now())/864e5));line+=`free trial: ${days} day${days===1?'':'s'} left`;}
+  else line+=u.status==='active'?'subscribed':u.status;
+  if(ok&&d.usage)line+=` · AI directs ${d.usage.used.plan}/${d.usage.limit.plan}`;
+  $('acct').textContent=line;
+  if(ok){showGate(null);return;}
+  $('trialBtn').textContent=u.hadTrial?'Subscribe ($9.99/month)':'Start free trial';
+  $('billingBtn2').style.display=u.status==='past_due'||u.status==='unpaid'?'inline-block':'none';
+  showGate('subBox');
+}
+$('loginBtn').onclick=async()=>{gateMsg('');try{await NI.login($('email').value.trim(),$('password').value);await refreshAccount();}catch(e){gateMsg(e.message||'Login failed');}};
+$('signupBtn').onclick=async()=>{gateMsg('');const pw=$('password').value;if(pw.length<8)return gateMsg('Use at least 8 characters for your password.');
+  try{const u=await NI.signup($('email').value.trim(),pw);if(u&&u.confirmedAt){await refreshAccount();}else gateMsg('Check your email to confirm your account, then log in.',true);}catch(e){gateMsg(e.message||'Signup failed');}};
+$('password').onkeydown=e=>{if(e.key==='Enter')$('loginBtn').click();};
+$('forgot').onclick=async e=>{e.preventDefault();const em=$('email').value.trim();if(!em)return gateMsg('Type your email first.');try{await NI.requestPasswordRecovery(em);gateMsg('Password reset email sent.',true);}catch(err){gateMsg(err.message);}};
+$('resetBtn').onclick=async()=>{try{await NI.updateUser({password:$('newPass').value});gateMsg('Password saved.',true);history.replaceState(null,'','/');await refreshAccount();}catch(e){gateMsg(e.message);}};
+const doLogout=async()=>{try{await NI.logout();}catch(e){}location.href='/';};
+$('logoutBtn').onclick=$('logoutBtn2').onclick=doLogout;
+$('trialBtn').onclick=async()=>{gateMsg('');$('trialBtn').disabled=true;try{const d=await api('/api/checkout',{});location.href=d.url;}catch(e){gateMsg(e.message);$('trialBtn').disabled=false;}};
+$('billingBtn').onclick=$('billingBtn2').onclick=async()=>{try{const d=await api('/api/portal',{});location.href=d.url;}catch(e){alert(e.message);}};
+(async()=>{
+  try{const r=await NI.handleAuthCallback();if(r&&r.type==='recovery'){showGate('resetBox');return;}if(r)history.replaceState(null,'','/');}catch(e){gateMsg(e.message);}
+  if(new URLSearchParams(location.search).get('checkout')==='success'){gateMsg('Payment set up. Activating your account…',true);showGate('subBox');for(let i=0;i<8;i++){await new Promise(r=>setTimeout(r,1500));await refreshAccount();if(S.me.user&&['trialing','active'].includes(S.me.user.status)){history.replaceState(null,'','/');break;}}}
+  else refreshAccount();
+})();
 
 // ---------- cast ----------
 const OPTS={hair:['bald','buzz','curly','fro','locs','braids','long','bun'],headwear:['none','beanie','cap','kufi','durag','turban','hijab'],beard:['none','jaw','full','goatee'],eyes:['normal','heavy'],brows:['arched','straight','thin'],top:['tee','hoodie','suit','abaya'],pants:['joggers','jeans'],build:['slim','regular','big']};
@@ -183,7 +214,7 @@ $('planBtn').onclick=async()=>{
   try{
     const cast=[...new Set(S.lines.map(l=>l.char))].map(id=>{const c=charById(id);return{id,name:c.name,look:`${c.headwear!=='none'?c.headwear+', ':''}${c.top}`};});
     const d=await api('/api/plan',{format:$('format').value,aspect:$('aspect').value,cast,lines:S.lines.map(l=>({start:l.start,end:l.end,char:l.char,text:l.text})),duration:S.voice.duration,notes:$('notes').value});
-    applyPlan(d.plan);$('planMsg').innerHTML='<span class="ok">Directed. Review the plan below.</span>';
+    applyPlan(d.plan);$('planMsg').innerHTML='<span class="ok">Directed. Review the plan below.</span>';refreshAccount();
   }catch(err){$('planMsg').innerHTML=`<span class="err">${esc(err.message)}</span> Using quick auto-direct instead.`;applyPlan(autoPlan());}
   btn.disabled=false;
 };

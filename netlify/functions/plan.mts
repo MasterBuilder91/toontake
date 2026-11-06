@@ -1,5 +1,5 @@
 import type { Config } from "@netlify/functions"
-import { checkAccess, claude, extractJSON } from "../lib/common.mts"
+import { account, spend, claude, extractJSON } from "../lib/common.mts"
 
 const SETS = "living_room, kitchen, bedroom, bathroom, street, car, office, newsdesk, confessional, void"
 const FX = "none (normal, close), far (yelling from another room / across the street), wall (heard through a wall or door), phone (phone call, walkie-talkie, intercom), outside (outdoors air), echo (big echo, dramatic or dream), room (small tiled room like a bathroom)"
@@ -30,7 +30,7 @@ Return ONLY JSON:
 Only list fx for lines that are not "none".`
 
 export default async (req: Request) => {
-  const denied = checkAccess(req); if (denied) return denied
+  const denied = await spend(await account(), "plan"); if (denied) return denied
   try {
     const { format, aspect, cast, lines, duration, notes } = await req.json()
     if (!Array.isArray(lines) || lines.length === 0) return Response.json({ error: "No lines" }, { status: 400 })
