@@ -67,7 +67,7 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
 
 <section>
   <h2><b>2</b>Your audio</h2>
-  <p class="muted">One take, all the voices. Make each character sound different and say names now and then. Record close and clean; the app adds distance and room effects.</p>
+  <p class="muted">One take, all the voices. Your audio never leaves your device. Make each character sound clearly different (higher, lower, raspier). Record close and clean; the app adds distance and room effects.</p>
   <div class="row">
     <label>Voice recording <input type="file" id="audio" accept="audio/*,video/*"></label>
     <span id="audioMsg" class="muted"></span>
@@ -81,12 +81,13 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
   <div class="row"><label>Music bed (optional) <input type="file" id="music" accept="audio/*"></label><label>Music volume <input type="range" id="musicVol" min="0" max="0.5" step="0.01" value="0.12"></label></div>
   <label>Notes for the director (optional)</label>
   <textarea id="notes" placeholder="e.g. 'This takes place in a laundromat. The second voice is a talking hot pocket.'"></textarea>
-  <div class="row"><button id="transcribeBtn" disabled>Transcribe</button><span id="trMsg" class="muted"></span></div>
+  <div class="row"><label><input type="checkbox" id="doWords" checked> Also catch the words (for captions and AI directing). Runs on your device; downloads a speech model once (~80 MB).</label></div>
+  <div class="row"><button id="transcribeBtn" disabled>Find the voices</button><span id="trMsg" class="muted"></span></div>
 </section>
 
 <section>
   <h2><b>3</b>Who's who</h2>
-  <p class="muted">Match each detected voice to a character. Fix any line that went to the wrong person.</p>
+  <p class="muted">Voices are split by how they sound (pitch and tone), so exaggerate your character voices. Match each voice to a character and fix any line that went to the wrong person.</p>
   <div id="spkMap" class="row"></div>
   <div class="lines" id="lines"><p class="muted" style="padding:8px">Transcribe your audio first.</p></div>
   <div class="row"><button id="planBtn" disabled>Direct my episode</button><button class="sec" id="autoBtn" disabled>Quick auto-direct (free)</button><span id="planMsg" class="muted"></span></div>

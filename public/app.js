@@ -80,33 +80,86 @@ function envelope(buf){
   return out;
 }
 
-// ---------- transcribe ----------
+// ---------- find voices (all on-device) ----------
+async function resample(buf,rate){const n=Math.ceil(buf.duration*rate);const ctx=new OfflineAudioContext(1,n,rate);const src=ctx.createBufferSource();src.buffer=buf;src.connect(ctx.destination);src.start();const r=await ctx.startRendering();return r.getChannelData(0);}
+function segmentsFrom(x,rate){
+  const hop=Math.round(rate/100),n=Math.floor(x.length/hop),e=new Float32Array(n);
+  for(let i=0;i<n;i++){let s=0;for(let j=i*hop;j<(i+1)*hop;j++)s+=x[j]*x[j];e[i]=Math.sqrt(s/hop);}
+  const so=[...e].sort((a,b)=>a-b),lo=so[Math.floor(n*.1)],hi=so[Math.floor(n*.95)],thr=lo+(hi-lo)*.15;
+  const on=new Uint8Array(n);for(let i=0;i<n;i++)on[i]=e[i]>thr?1:0;
+  // close gaps < 0.2 s
+  for(let i=0;i<n;){if(!on[i]){let j=i;while(j<n&&!on[j])j++;if(i>0&&j<n&&j-i<20)for(let k=i;k<j;k++)on[k]=1;i=j;}else i++;}
+  const segs=[];for(let i=0;i<n;){if(on[i]){let j=i;while(j<n&&on[j])j++;if(j-i>=20)segs.push({start:i/100,end:j/100});i=j;}else i++;}
+  return segs;
+}
+function features(x,rate,seg){ // x at 8 kHz
+  const W=256,H=128,a=Math.floor(seg.start*rate),b=Math.floor(seg.end*rate);const f0s=[];let z=0,zc=0;
+  for(let p=a;p+W+160<b;p+=H){
+    let e0=0;for(let i=0;i<W;i++)e0+=x[p+i]*x[p+i];if(e0<1e-6)continue;
+    const R=new Float32Array(161);let best=0;for(let L=20;L<=160;L++){let c=0,e1=0;for(let i=0;i<W;i++){c+=x[p+i]*x[p+i+L];e1+=x[p+i+L]*x[p+i+L];}R[L]=c/Math.sqrt(e0*e1+1e-9);if(R[L]>best)best=R[L];}
+    if(best>.5){let lag=0;for(let L=21;L<160;L++)if(R[L]>=.88*best&&R[L]>=R[L-1]&&R[L]>=R[L+1]){lag=L;break;}if(lag)f0s.push(Math.log(rate/lag));}
+    for(let i=1;i<W;i++)if((x[p+i]>=0)!==(x[p+i-1]>=0))z++;zc+=W;
+  }
+  f0s.sort((a,b)=>a-b);
+  return{f0:f0s.length?f0s[Math.floor(f0s.length/2)]:null,zcr:zc?z/zc:0};
+}
+function kmeans(pts,k){
+  if(k<=1)return pts.map(()=>0);
+  const order=pts.map((p,i)=>i).sort((a,b)=>pts[a][0]-pts[b][0]);
+  let C=Array.from({length:k},(_,j)=>pts[order[Math.floor((j+.5)/k*order.length)]].slice());
+  let lab=pts.map(()=>0);
+  for(let it=0;it<30;it++){
+    lab=pts.map(p=>{let bi=0,bd=1e9;C.forEach((c,j)=>{const d=c.reduce((s,v,q)=>s+(v-p[q])**2,0);if(d<bd){bd=d;bi=j;}});return bi;});
+    C=C.map((c,j)=>{const m=pts.filter((_,i)=>lab[i]===j);return m.length?c.map((_,q)=>m.reduce((s,p)=>s+p[q],0)/m.length):c;});
+  }
+  return lab;
+}
+function runWhisper(audio16){
+  return new Promise((res,rej)=>{
+    const w=new Worker('asr-worker.js',{type:'module'});
+    w.onmessage=e=>{const m=e.data;
+      if(m.type==='progress'&&m.pct!=null)$('trMsg').textContent=`Downloading speech model… ${Math.round(m.pct)}%`;
+      else if(m.type==='status')$('trMsg').textContent=m.text;
+      else if(m.type==='done'){w.terminate();res(m.words);}
+      else if(m.type==='error'){w.terminate();rej(new Error(m.message));}};
+    w.onerror=e=>{w.terminate();rej(new Error(e.message||'Speech model failed to start'));};
+    w.postMessage({audio:audio16});
+  });
+}
 $('transcribeBtn').onclick=async()=>{
-  if(!S.file)return;const btn=$('transcribeBtn');btn.disabled=true;
+  if(!S.voice)return;const btn=$('transcribeBtn');btn.disabled=true;
   try{
-    const id=crypto.randomUUID().toLowerCase(),CH=3_500_000,parts=Math.ceil(S.file.size/CH);
-    if(parts>150)throw new Error('File too big. Keep it under about 500 MB.');
-    for(let i=0;i<parts;i++){$('trMsg').textContent=`Uploading ${i+1}/${parts}…`;await api('/api/upload',S.file.slice(i*CH,(i+1)*CH),true,{'x-id':id,'x-part':String(i)});}
-    $('trMsg').textContent='Transcribing and separating voices… (about 10–40 s)';
-    const d=await api('/api/transcribe',{id,parts,name:S.file.name,type:S.file.type,numSpeakers:+$('nspk').value});
-    S.lines=groupLines(d.words);
-    const spks=[...new Set(S.lines.map(l=>l.spk))].sort();
+    $('trMsg').textContent='Finding the lines…';
+    const x16=await resample(S.voice,16000),x8=await resample(S.voice,8000);
+    const segs=segmentsFrom(x16,16000);
+    if(!segs.length)throw new Error('No speech found. Is the recording silent or very quiet?');
+    let k=+$('nspk').value||2;
+    if($('format').value==='monologue'&&$('nspk').value==='0')k=1;
+    $('trMsg').textContent='Telling the voices apart…';await new Promise(r=>setTimeout(r,20));
+    const F=segs.map(s=>features(x8,8000,s));
+    const vf=F.filter(f=>f.f0!=null),mean=a=>a.reduce((s,v)=>s+v,0)/Math.max(1,a.length),sd=(a,m)=>Math.sqrt(mean(a.map(v=>(v-m)**2)))||1;
+    const mf=mean(vf.map(f=>f.f0)),sf=sd(vf.map(f=>f.f0),mf),mz=mean(F.map(f=>f.zcr)),sz=sd(F.map(f=>f.zcr),mz);
+    const pts=F.map(f=>[f.f0==null?0:2*(f.f0-mf)/sf,(f.zcr-mz)/sz]);
+    const lab=kmeans(pts,Math.min(k,segs.length));
+    segs.forEach((s,i)=>s.spk='speaker_'+lab[i]);
+    // merge neighbours from the same voice
+    const lines=[];for(const s of segs){const L=lines[lines.length-1];if(L&&L.spk===s.spk&&s.start-L.end<.6&&s.end-L.start<9)L.end=s.end;else lines.push({spk:s.spk,start:s.start,end:s.end,text:'',fx:'none'});}
+    if($('doWords').checked){
+      try{const words=await runWhisper(x16);
+        for(const w of words){const mid=(w.start+w.end)/2;let best=null,bd=1e9;for(const l of lines){const d=mid<l.start?l.start-mid:mid>l.end?mid-l.end:0;if(d<bd){bd=d;best=l;}}if(best&&bd<1.5)best.text=(best.text+' '+w.text.trim()).trim();}
+      }catch(err){$('trMsg').innerHTML=`<span class="err">Couldn't catch the words (${esc(err.message)}). Voices were still split.</span>`;await new Promise(r=>setTimeout(r,1500));}
+    }
+    S.lines=lines;
+    const spks=[...new Set(lines.map(l=>l.spk))].sort();
     S.spkMap={};spks.forEach((s,i)=>S.spkMap[s]=(S.chars[i%S.chars.length]||{}).id);
     S.lines.forEach(l=>l.char=S.spkMap[l.spk]);
-    renderLines();$('trMsg').innerHTML=`<span class="ok">${S.lines.length} lines, ${spks.length} voice${spks.length>1?'s':''}</span>`;
-    $('planBtn').disabled=$('autoBtn').disabled=false;
+    renderLines();
+    const hasText=S.lines.some(l=>l.text);
+    $('trMsg').innerHTML=`<span class="ok">${S.lines.length} lines, ${spks.length} voice${spks.length>1?'s':''}${hasText?'':' (no words, so captions and AI directing are off)'}</span>`;
+    $('planBtn').disabled=!hasText;$('autoBtn').disabled=false;
   }catch(err){$('trMsg').innerHTML=`<span class="err">${esc(err.message)}</span>`;}
   btn.disabled=false;
 };
-function groupLines(words){
-  const L=[];let cur=null;
-  for(const w of words){
-    const brk=!cur||w.speaker!==cur.spk||w.start-cur.end>.75||cur.n>=16||(/[.!?]$/.test(cur.text)&&cur.n>=6);
-    if(brk){cur={spk:w.speaker,start:w.start,end:w.end,text:w.text.trim(),n:1};L.push(cur);}
-    else{cur.end=w.end;cur.text+=' '+w.text.trim();cur.n++;}
-  }
-  return L.map(({n,...l})=>({...l,fx:'none'}));
-}
 function refreshSpeakerMap(){
   const el=$('spkMap');if(!S.lines.length){el.innerHTML='';return;}
   const spks=Object.keys(S.spkMap).sort();el.innerHTML='';
@@ -119,7 +172,7 @@ function renderLines(){
   const el=$('lines');el.innerHTML='';
   S.lines.forEach((l,i)=>{const d=document.createElement('div');d.className='line';
     d.innerHTML=`<span class="muted">${fmt(l.start)}</span>`;const cs=charSelect(l.char);cs.onchange=()=>{l.char=cs.value;invalidate();};d.appendChild(cs);
-    const tx=document.createElement('span');tx.textContent=l.text;d.appendChild(tx);
+    const tx=document.createElement('input');tx.type='text';tx.value=l.text;tx.placeholder=`(${(l.end-l.start).toFixed(1)} s line, type the words for captions)`;tx.oninput=()=>{l.text=tx.value;$('planBtn').disabled=!S.lines.some(x=>x.text);};d.appendChild(tx);
     const fx=document.createElement('select');FXS.forEach(f=>{const o=document.createElement('option');o.value=f;o.textContent='🔊 '+f;fx.appendChild(o);});fx.value=l.fx||'none';fx.onchange=()=>{l.fx=fx.value;S.mix=null;};d.appendChild(fx);
     el.appendChild(d);});
 }
@@ -173,7 +226,7 @@ function invalidate(){S.mix=null;}
 
 function episode(W,H){
   const cast={};S.chars.forEach(c=>cast[c.id]=c);
-  return{W,H,cast,lines:S.lines.map((l,i)=>({start:l.start,end:l.end,char:l.char,text:l.text,idx:i})),scenes:S.plan.scenes,shots:S.plan.shots,props:S.plan.props,cards:S.plan.cards,title:S.plan.title,captions:$('captions').checked,env:S.env};
+  return{W,H,cast,lines:S.lines.map((l,i)=>({start:l.start,end:l.end,char:l.char,text:l.text||'',idx:i})),scenes:S.plan.scenes,shots:S.plan.shots,props:S.plan.props,cards:S.plan.cards,title:S.plan.title,captions:$('captions').checked,env:S.env};
 }
 function dims(){return $('aspect').value==='9:16'?[720,1280]:[1280,720];}
 
@@ -270,5 +323,5 @@ $('renderBtn').onclick=async()=>{
 function fmt(s){s=Math.max(0,s);const m=Math.floor(s/60),x=Math.floor(s%60);return`${m}:${String(x).padStart(2,'0')}`;}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 renderCast();
-window._S=S;window._applyPlan=applyPlan;window._groupLines=groupLines;window._decode=decode;window._envelope=envelope;
+window._S=S;window._applyPlan=applyPlan;window._decode=decode;window._envelope=envelope;
 })();
