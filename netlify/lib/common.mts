@@ -3,9 +3,11 @@ import { getStore } from "@netlify/blobs"
 import Stripe from "stripe"
 
 // Free (no account or not subscribed): per day, keyed by account or IP. Paid: per calendar month.
+// Free users never touch a paid API (only the export counter, which costs nothing).
+// Paid caps are set so even a maxed-out subscriber costs well under the $9.40 you keep.
 export const LIMITS = {
-  free: { plan: 1, analyze: 1, render: 1 },
-  active: { plan: 40, analyze: 20, render: 100000 },
+  free: { plan: 0, analyze: 0, render: 1 },
+  active: { plan: 30, analyze: 10, render: 100000 },
 } as const
 type Kind = "plan" | "analyze" | "render"
 
@@ -52,6 +54,10 @@ export async function spend(a: Account | null, ip: string, kind: Kind): Promise<
   const store = getStore("usage"), key = bucket(a, ip)
   const cur = ((await store.get(key, { type: "json" })) as Record<string, number> | null) || {}
   const lim = LIMITS[isPaid(a) ? "active" : "free"][kind]
+  if (!isPaid(a) && lim === 0) {
+    const msg = { plan: "AI directing is part of the unlimited plan.", analyze: "Selfie characters are part of the unlimited plan.", render: "Exports are part of the unlimited plan." }[kind]
+    return Response.json({ error: msg, code: "upgrade" }, { status: 429 })
+  }
   if ((cur[kind] || 0) >= lim) {
     const what = { plan: "AI-directed episode", analyze: "selfie character", render: "free export" }[kind]
     return Response.json(isPaid(a)

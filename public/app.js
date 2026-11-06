@@ -26,6 +26,7 @@ function upgrade(why){
   if(!u){$('authWhy').textContent=(why?why+' ':'')+'Create a free account or log in, then go unlimited for $9.99/month.';showGate('authBox');}
   else{$('subWhy').textContent=why||'';showGate('subBox');}
 }
+function paidNow(){const u=S.me&&S.me.user;return !!(u&&(u.admin||['trialing','active'].includes(u.status)));}
 async function refreshAccount(){
   let d;try{d=await (await fetch('/api/me',{credentials:'same-origin'})).json();}catch(e){d={user:null,usage:null};}
   S.me=d;const u=d.user,us=d.usage;const paid=u&&(u.admin||['trialing','active'].includes(u.status));
@@ -36,7 +37,7 @@ async function refreshAccount(){
   let line=u?`${u.email} · `:'';
   if(u&&u.admin)line+='owner';
   else if(paid)line+=`unlimited · AI directs ${us.used.plan}/${us.limit.plan} this month`;
-  else if(us)line+=`free today: export ${us.used.render}/${us.limit.render}, AI direct ${us.used.plan}/${us.limit.plan}`;
+  else if(us)line+=`free plan: ${us.limit.render-us.used.render} export${us.limit.render-us.used.render===1?'':'s'} left today`;
   $('acct').textContent=line;
   if(u&&wantUpgrade&&!paid&&$('gate').style.display!=='none')showGate('subBox');
   if(paid&&$('gate').style.display!=='none'&&$('subBox').style.display!=='none')showGate(null);
@@ -87,6 +88,7 @@ function renderEditor(){
 let rcT;function renderCastSoon(){clearTimeout(rcT);rcT=setTimeout(renderCast,120);}
 $('delChar').onclick=()=>{if(S.chars.length<=1)return;S.chars=S.chars.filter(c=>c.id!==S.sel);S.sel=null;saveChars();renderCast();renderEditor();};
 $('selfie').onchange=async e=>{
+  if(!paidNow()){e.target.value='';upgrade('Selfie characters are part of the unlimited plan. You can build any character by hand for free.');return;}
   const file=e.target.files[0];if(!file)return;const c=charById(S.sel);if(!c)return;
   $('selfieMsg').textContent='Reading your photo…';
   try{
@@ -131,6 +133,7 @@ function parseScript(txt){
   return out;
 }
 $('ttsBtn').onclick=async()=>{
+  if(!paidNow()){upgrade('Typed scripts in the MasterBuilder91 voice are part of the unlimited plan.');return;}
   const lines=parseScript($('script').value);if(!lines.length){$('ttsMsg').innerHTML='<span class="err">Write lines like "Name: what they say".</span>';return;}
   const missing=[...new Set(lines.filter(l=>!l.char).map(l=>l.name))];
   if(missing.length){$('ttsMsg').innerHTML=`<span class="err">No character named ${esc(missing.join(', '))}. Add them in step 1 or fix the name.</span>`;return;}
@@ -250,6 +253,7 @@ function renderLines(){
 
 // ---------- direction ----------
 $('planBtn').onclick=async()=>{
+  if(!paidNow()){upgrade('AI directing is part of the unlimited plan. Quick auto-direct is free.');return;}
   const btn=$('planBtn');btn.disabled=true;$('planMsg').textContent='The director is reading your script… (15–50 s)';
   try{
     const cast=[...new Set(S.lines.map(l=>l.char))].map(id=>{const c=charById(id);return{id,name:c.name,look:`${c.headwear!=='none'?c.headwear+', ':''}${c.top}`};});

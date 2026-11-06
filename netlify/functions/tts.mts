@@ -5,7 +5,7 @@ import { account, isPaid } from "../lib/common.mts"
 // "Type it instead": turns a typed script into speech in the owner's cloned voice (ElevenLabs).
 // Unlimited-plan only, with a monthly character cap so one user can't run up the bill.
 const DEFAULT_VOICE = "smCI2BCwin80MveoD81e" // Muhammed Abdullah (original professional clone)
-const MONTHLY_CHARS = 40000
+const MONTHLY_CHARS = 25000
 const STYLES: Record<string, { stability: number; similarity_boost: number; style: number; speed: number }> = {
   normal:  { stability: 0.5,  similarity_boost: 0.8, style: 0.2, speed: 1.0 },
   excited: { stability: 0.3,  similarity_boost: 0.8, style: 0.6, speed: 1.08 },

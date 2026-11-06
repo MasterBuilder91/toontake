@@ -52,7 +52,7 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
 <div id="gate" style="display:none"><section style="width:min(440px,92vw);position:relative"><button class="sec" id="closeGate" style="position:absolute;right:10px;top:10px;padding:2px 10px">×</button>
   <div id="authBox">
     <h2 id="authTitle">Log in or create an account</h2>
-    <p class="muted" id="authWhy">Free: 1 export and 1 AI-directed episode a day. Unlimited: $9.99/month, no watermark, cancel anytime.</p>
+    <p class="muted" id="authWhy">Free: 1 export a day with quick auto-direct. Unlimited ($9.99/month): no watermark, AI directing, selfie characters, typed scripts in the MasterBuilder91 voice.</p>
     <div class="row"><input id="email" type="email" placeholder="Email" style="flex:1" autocomplete="email"></div>
     <div class="row"><input id="password" type="password" placeholder="Password (8+ characters)" style="flex:1" autocomplete="current-password"></div>
     <div class="row"><button id="loginBtn">Log in</button><button class="sec" id="signupBtn">Create account</button></div>
@@ -61,7 +61,7 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
   <div id="subBox" style="display:none">
     <h2>Go unlimited</h2>
     <p id="subWhy"></p>
-    <p><b>$9.99/month.</b> Make as many episodes as you want, no watermark, 40 AI-directed episodes and 20 selfie characters a month. Cancel anytime from Billing.</p>
+    <p><b>$9.99/month.</b> Unlimited exports with no watermark, 30 AI-directed episodes, 10 selfie characters and typed scripts in the MasterBuilder91 voice each month. Cancel anytime from Billing.</p>
     <div class="row"><button id="trialBtn">Go unlimited</button><button class="sec" id="billingBtn2" style="display:none">Fix billing</button><button class="sec" id="logoutBtn2">Log out</button></div>
   </div>
   <div id="resetBox" style="display:none">
@@ -79,7 +79,7 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
   <div class="cast" id="cast"></div>
   <div id="editor">
     <div class="row"><label>Name <input type="text" id="e_name"></label>
-      <label class="pill">📷 Build from selfie <input type="file" id="selfie" accept="image/*" hidden></label>
+      <label class="pill">📷 Build from selfie ✦ <input type="file" id="selfie" accept="image/*" hidden></label>
       <span id="selfieMsg" class="muted"></span>
       <button class="sec" id="delChar">Delete</button></div>
     <div class="grid" id="fields"></div>
@@ -117,7 +117,7 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
   <p class="muted">Voices are split by how they sound (pitch and tone), so exaggerate your character voices. Match each voice to a character and fix any line that went to the wrong person.</p>
   <div id="spkMap" class="row"></div>
   <div class="lines" id="lines"><p class="muted" style="padding:8px">Transcribe your audio first.</p></div>
-  <div class="row"><button id="planBtn" disabled>Direct my episode</button><button class="sec" id="autoBtn" disabled>Quick auto-direct (free)</button><span id="planMsg" class="muted"></span></div>
+  <div class="row"><button id="planBtn" disabled>Direct my episode ✦</button><button class="sec" id="autoBtn" disabled>Quick auto-direct (free)</button><span id="planMsg" class="muted"></span></div>
 </section>
 
 <section>
