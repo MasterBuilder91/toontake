@@ -7,9 +7,9 @@ Upload an improvised voice recording (one take, all characters) and get a cartoo
 - `netlify/functions/` — `plan` (Claude directs the episode from the transcript), `analyze` (selfie → cartoon traits).
 
 ## Accounts and billing
-- Login: Netlify Identity (enable it in the Netlify dashboard → Project → Identity; registration Open).
-- Billing: Stripe Checkout subscription, 7-day free trial with card required, one trial per card (card fingerprint check in the webhook).
-- Usage caps on paid AI calls (Claude): trial 3 directed episodes / 5 selfie characters; paid 40 / 20 per month. Stored in Netlify Blobs.
+- No login needed to use it. Free use per day (by account, or by IP when logged out): 1 MP4 export (with a "Made with ToonTake" watermark), 1 AI-directed episode, 1 selfie character. Voice finding, auto-direct and previews are unlimited.
+- Unlimited: Stripe subscription, $9.99/month (ToonTake Monthly), no trial. Needs a free account (Netlify Identity). No watermark; 40 AI-directed episodes and 20 selfie characters a month.
+- Counters live in Netlify Blobs.
 
 ## Environment variables (Netlify → Project configuration → Environment variables, scope: Functions)
 - `ANTHROPIC_API_KEY` — Claude API key.

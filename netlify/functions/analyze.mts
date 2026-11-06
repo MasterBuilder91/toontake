@@ -1,4 +1,4 @@
-import type { Config } from "@netlify/functions"
+import type { Config, Context } from "@netlify/functions"
 import { account, spend, claude, extractJSON } from "../lib/common.mts"
 
 const PROMPT = `You design flat cartoon characters (simple cutout style) from a photo of a real adult who uploaded their own picture.
@@ -7,8 +7,8 @@ Describe only visible styling and coloring for the cartoon. Return ONLY JSON wit
 Pick the closest option for each. If a part isn't visible, choose a plain neutral default.`
 
 // Turns a selfie into cartoon traits. The photo is only sent to Claude for this one request and is not stored.
-export default async (req: Request) => {
-  const denied = await spend(await account(), "analyze"); if (denied) return denied
+export default async (req: Request, context: Context) => {
+  const denied = await spend(await account(), context.ip, "analyze"); if (denied) return denied
   try {
     const { image } = await req.json()
     const m = /^data:(image\/(jpeg|png|webp));base64,(.+)$/.exec(image || "")

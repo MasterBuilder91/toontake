@@ -2,11 +2,12 @@ import { getUser, admin } from "@netlify/identity"
 import { getStore } from "@netlify/blobs"
 import Stripe from "stripe"
 
+// Free (no account or not subscribed): per day, keyed by account or IP. Paid: per calendar month.
 export const LIMITS = {
-  trialing: { plan: 3, analyze: 5 },
-  active: { plan: 40, analyze: 20 },
+  free: { plan: 1, analyze: 1, render: 1 },
+  active: { plan: 40, analyze: 20, render: 100000 },
 } as const
-type Kind = "plan" | "analyze"
+type Kind = "plan" | "analyze" | "render"
 
 export function stripe() {
   const key = Netlify.env.get("STRIPE_SECRET_KEY")
@@ -31,27 +32,32 @@ export async function account(): Promise<Account | null> {
   return { id: u.id, email: u.email, status: adm ? "active" : (meta.status || "none"), admin: adm, trialEnd: meta.trialEnd, periodStart: meta.periodStart, meta }
 }
 
-function bucket(a: Account) {
-  // Trial usage is counted once per trial; paid usage per calendar month.
-  if (a.status === "trialing") return `${a.id}/trial`
-  const d = new Date(); return `${a.id}/${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`
+export const isPaid = (a: Account | null) => !!a && ["trialing", "active"].includes(a.status)
+
+function bucket(a: Account | null, ip: string) {
+  const d = new Date(), day = d.toISOString().slice(0, 10), month = day.slice(0, 7)
+  if (isPaid(a)) return `paid/${a!.id}/${month}`
+  return `free/${a ? a.id : "ip-" + ip}/${day}`
 }
 
-export async function usage(a: Account) {
-  const u = (await getStore("usage").get(bucket(a), { type: "json" })) as Record<Kind, number> | null
-  const lim = LIMITS[a.status === "trialing" ? "trialing" : "active"]
-  return { used: { plan: u?.plan || 0, analyze: u?.analyze || 0 }, limit: lim }
+export async function usage(a: Account | null, ip: string) {
+  const u = (await getStore("usage").get(bucket(a, ip), { type: "json" })) as Record<Kind, number> | null
+  const lim = LIMITS[isPaid(a) ? "active" : "free"]
+  return { paid: isPaid(a), period: isPaid(a) ? "month" : "day", used: { plan: u?.plan || 0, analyze: u?.analyze || 0, render: u?.render || 0 }, limit: lim }
 }
 
-// Gate for anything that spends money (Claude calls). Returns an error Response or null.
-export async function spend(a: Account | null, kind: Kind): Promise<Response | null> {
-  if (!a) return Response.json({ error: "Please log in.", code: "login" }, { status: 401 })
-  if (!["trialing", "active"].includes(a.status)) return Response.json({ error: "Start your free trial to use this.", code: "subscribe" }, { status: 402 })
-  if (a.admin) return null
-  const store = getStore("usage"), key = bucket(a)
+// Gate for usage. Free users get a small daily allowance (no login needed); subscribers get monthly caps.
+export async function spend(a: Account | null, ip: string, kind: Kind): Promise<Response | null> {
+  if (a?.admin) return null
+  const store = getStore("usage"), key = bucket(a, ip)
   const cur = ((await store.get(key, { type: "json" })) as Record<string, number> | null) || {}
-  const lim = LIMITS[a.status === "trialing" ? "trialing" : "active"][kind]
-  if ((cur[kind] || 0) >= lim) return Response.json({ error: a.status === "trialing" ? `Trial limit reached (${lim}). It resets when your subscription starts.` : `Monthly limit reached (${lim}). It resets next month.`, code: "limit" }, { status: 429 })
+  const lim = LIMITS[isPaid(a) ? "active" : "free"][kind]
+  if ((cur[kind] || 0) >= lim) {
+    const what = { plan: "AI-directed episode", analyze: "selfie character", render: "free export" }[kind]
+    return Response.json(isPaid(a)
+      ? { error: `Monthly limit reached for ${what}s (${lim}). It resets next month.`, code: "limit" }
+      : { error: `You've used today's ${what}. Go unlimited to keep going, or come back tomorrow.`, code: "upgrade" }, { status: 429 })
+  }
   cur[kind] = (cur[kind] || 0) + 1
   await store.setJSON(key, cur)
   return null

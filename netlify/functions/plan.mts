@@ -1,4 +1,4 @@
-import type { Config } from "@netlify/functions"
+import type { Config, Context } from "@netlify/functions"
 import { account, spend, claude, extractJSON } from "../lib/common.mts"
 
 const SETS = "living_room, kitchen, bedroom, bathroom, street, car, office, newsdesk, confessional, void"
@@ -29,8 +29,8 @@ Return ONLY JSON:
 {"title":"short funny episode title","scenes":[{"start":0,"set":"...","cast":["id",...]}],"shots":[{"start":0,"type":"wide|close","on":"id"}],"fx":[{"line":index,"fx":"..."}],"props":[{"start":s,"end":s,"emoji":"🍞","label":"few words"}],"cards":[{"start":s,"end":s,"text":"..."}],"notes":"one or two sentences explaining your direction choices"}
 Only list fx for lines that are not "none".`
 
-export default async (req: Request) => {
-  const denied = await spend(await account(), "plan"); if (denied) return denied
+export default async (req: Request, context: Context) => {
+  const denied = await spend(await account(), context.ip, "plan"); if (denied) return denied
   try {
     const { format, aspect, cast, lines, duration, notes } = await req.json()
     if (!Array.isArray(lines) || lines.length === 0) return Response.json({ error: "No lines" }, { status: 400 })

@@ -1,7 +1,7 @@
 import type { Config } from "@netlify/functions"
 import { account, stripe } from "../lib/common.mts"
 
-// Starts Stripe Checkout: 7-day free trial (card required), then the monthly price.
+// Starts Stripe Checkout for the monthly plan. (Free daily use replaces a trial.)
 export default async (req: Request) => {
   const a = await account()
   if (!a) return Response.json({ error: "Please log in." }, { status: 401 })
@@ -19,7 +19,6 @@ export default async (req: Request) => {
     client_reference_id: a.id,
     subscription_data: {
       metadata: { userId: a.id },
-      ...(a.meta.hadTrial ? {} : { trial_period_days: 7, trial_settings: { end_behavior: { missing_payment_method: "cancel" } } }),
     },
     metadata: { userId: a.id },
     allow_promotion_codes: true,

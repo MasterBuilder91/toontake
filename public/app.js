@@ -7,46 +7,55 @@ if(!S.chars.length)S.chars=[{...Toon.DEFAULT_TRAITS,id:'c1',name:'Abu Salman',he
 const saveChars=()=>localStorage.setItem('tt_chars',JSON.stringify(S.chars));
 const charById=id=>S.chars.find(c=>c.id===id);
 
-// ---------- account, login and billing ----------
+// ---------- account, login and billing (no login needed to start) ----------
+let wantUpgrade=false;
 async function api(path,body){
   const r=await fetch(path,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
   let d;try{d=await r.json();}catch(e){throw new Error(`Server error ${r.status}`);}
-  if(r.status===401||r.status===402){refreshAccount();throw new Error(d.error||'Please log in');}
+  if(r.status===429&&d.code==='upgrade'){upgrade(d.error);refreshAccount();throw new Error(d.error);}
+  if(r.status===401){wantUpgrade=true;showGate('authBox');throw new Error(d.error||'Please log in');}
   if(!r.ok)throw new Error(d.error||`Error ${r.status}`);
   return d;
 }
 const gateMsg=(t,ok)=>{$('gateMsg').className=ok?'ok':'err';$('gateMsg').textContent=t||'';};
-function showGate(which){$('gate').style.display=which?'flex':'none';['authBox','subBox','resetBox'].forEach(b=>$(b).style.display=b===which?'block':'none');}
-async function refreshAccount(){
-  let d;try{d=await (await fetch('/api/me',{credentials:'same-origin'})).json();}catch(e){d={user:null};}
-  S.me=d;const u=d.user;
-  $('logoutBtn').style.display=$('billingBtn').style.display=u?'inline-block':'none';
-  if(!u){$('acct').textContent='';showGate('authBox');return;}
-  const ok=['trialing','active'].includes(u.status);
-  let line=`${u.email} · `;
-  if(u.admin)line+='owner';
-  else if(u.status==='trialing'){const days=Math.max(0,Math.ceil((u.trialEnd-Date.now())/864e5));line+=`free trial: ${days} day${days===1?'':'s'} left`;}
-  else line+=u.status==='active'?'subscribed':u.status;
-  if(ok&&d.usage)line+=` · AI directs ${d.usage.used.plan}/${d.usage.limit.plan}`;
-  $('acct').textContent=line;
-  if(ok){showGate(null);return;}
-  $('trialBtn').textContent=u.hadTrial?'Subscribe ($9.99/month)':'Start free trial';
-  $('billingBtn2').style.display=u.status==='past_due'||u.status==='unpaid'?'inline-block':'none';
-  showGate('subBox');
+function showGate(which){$('gate').style.display=which?'flex':'none';['authBox','subBox','resetBox'].forEach(b=>$(b).style.display=b===which?'block':'none');if(!which)gateMsg('');}
+$('closeGate').onclick=()=>showGate(null);
+function upgrade(why){
+  wantUpgrade=true;
+  const u=S.me&&S.me.user;
+  if(!u){$('authWhy').textContent=(why?why+' ':'')+'Create a free account or log in, then go unlimited for $9.99/month.';showGate('authBox');}
+  else{$('subWhy').textContent=why||'';showGate('subBox');}
 }
-$('loginBtn').onclick=async()=>{gateMsg('');try{await NI.login($('email').value.trim(),$('password').value);await refreshAccount();}catch(e){gateMsg(e.message||'Login failed');}};
+async function refreshAccount(){
+  let d;try{d=await (await fetch('/api/me',{credentials:'same-origin'})).json();}catch(e){d={user:null,usage:null};}
+  S.me=d;const u=d.user,us=d.usage;const paid=u&&(u.admin||['trialing','active'].includes(u.status));
+  $('logoutBtn').style.display=u?'inline-block':'none';
+  $('signinBtn').style.display=u?'none':'inline-block';
+  $('billingBtn').style.display=u&&!u.admin&&(paid||u.status==='past_due')?'inline-block':'none';
+  $('upBtn').style.display=paid?'none':'inline-block';
+  let line=u?`${u.email} · `:'';
+  if(u&&u.admin)line+='owner';
+  else if(paid)line+=`unlimited · AI directs ${us.used.plan}/${us.limit.plan} this month`;
+  else if(us)line+=`free today: export ${us.used.render}/${us.limit.render}, AI direct ${us.used.plan}/${us.limit.plan}`;
+  $('acct').textContent=line;
+  if(u&&wantUpgrade&&!paid&&$('gate').style.display!=='none')showGate('subBox');
+  if(paid&&$('gate').style.display!=='none'&&$('subBox').style.display!=='none')showGate(null);
+}
+$('upBtn').onclick=()=>upgrade('');
+$('signinBtn').onclick=()=>{wantUpgrade=false;$('authWhy').textContent='Free: 1 export and 1 AI-directed episode a day. Unlimited: $9.99/month, no watermark, cancel anytime.';showGate('authBox');};
+$('loginBtn').onclick=async()=>{gateMsg('');try{await NI.login($('email').value.trim(),$('password').value);showGate(null);await refreshAccount();}catch(e){gateMsg(e.message||'Login failed');}};
 $('signupBtn').onclick=async()=>{gateMsg('');const pw=$('password').value;if(pw.length<8)return gateMsg('Use at least 8 characters for your password.');
-  try{const u=await NI.signup($('email').value.trim(),pw);if(u&&u.confirmedAt){await refreshAccount();}else gateMsg('Check your email to confirm your account, then log in.',true);}catch(e){gateMsg(e.message||'Signup failed');}};
+  try{const u=await NI.signup($('email').value.trim(),pw);if(u&&u.confirmedAt){showGate(null);await refreshAccount();}else gateMsg('Check your email to confirm your account, then log in.',true);}catch(e){gateMsg(e.message||'Signup failed');}};
 $('password').onkeydown=e=>{if(e.key==='Enter')$('loginBtn').click();};
 $('forgot').onclick=async e=>{e.preventDefault();const em=$('email').value.trim();if(!em)return gateMsg('Type your email first.');try{await NI.requestPasswordRecovery(em);gateMsg('Password reset email sent.',true);}catch(err){gateMsg(err.message);}};
-$('resetBtn').onclick=async()=>{try{await NI.updateUser({password:$('newPass').value});gateMsg('Password saved.',true);history.replaceState(null,'','/');await refreshAccount();}catch(e){gateMsg(e.message);}};
+$('resetBtn').onclick=async()=>{try{await NI.updateUser({password:$('newPass').value});gateMsg('Password saved.',true);history.replaceState(null,'','/');setTimeout(()=>showGate(null),800);await refreshAccount();}catch(e){gateMsg(e.message);}};
 const doLogout=async()=>{try{await NI.logout();}catch(e){}location.href='/';};
 $('logoutBtn').onclick=$('logoutBtn2').onclick=doLogout;
 $('trialBtn').onclick=async()=>{gateMsg('');$('trialBtn').disabled=true;try{const d=await api('/api/checkout',{});location.href=d.url;}catch(e){gateMsg(e.message);$('trialBtn').disabled=false;}};
 $('billingBtn').onclick=$('billingBtn2').onclick=async()=>{try{const d=await api('/api/portal',{});location.href=d.url;}catch(e){alert(e.message);}};
 (async()=>{
-  try{const r=await NI.handleAuthCallback();if(r&&r.type==='recovery'){showGate('resetBox');return;}if(r)history.replaceState(null,'','/');}catch(e){gateMsg(e.message);}
-  if(new URLSearchParams(location.search).get('checkout')==='success'){gateMsg('Payment set up. Activating your account…',true);showGate('subBox');for(let i=0;i<8;i++){await new Promise(r=>setTimeout(r,1500));await refreshAccount();if(S.me.user&&['trialing','active'].includes(S.me.user.status)){history.replaceState(null,'','/');break;}}}
+  try{const r=await NI.handleAuthCallback();if(r&&r.type==='recovery'){showGate('resetBox');return;}if(r)history.replaceState(null,'','/');}catch(e){}
+  if(new URLSearchParams(location.search).get('checkout')==='success'){history.replaceState(null,'','/');$('acct').textContent='Activating your plan…';for(let i=0;i<8;i++){await refreshAccount();const u=S.me.user;if(u&&['trialing','active'].includes(u.status))break;await new Promise(r=>setTimeout(r,1500));}}
   else refreshAccount();
 })();
 
@@ -325,6 +334,7 @@ $('renderBtn').onclick=async()=>{
   try{
     const[W,H]=dims();const vcfg=await pickVideo(W,H),acfg=await pickAudio();
     if(!vcfg||!acfg)throw new Error('Video encoding is not supported on this device.');
+    const ticket=await api('/api/render-start',{});
     $('renderMsg').textContent='Mixing audio…';const mix=await buildMix();
     const muxer=new Mp4Muxer.Muxer({target:new Mp4Muxer.ArrayBufferTarget(),video:{codec:'avc',width:W,height:H},audio:{codec:acfg.mux,numberOfChannels:2,sampleRate:SR},fastStart:'in-memory'});
     let encErr=null;
@@ -333,7 +343,7 @@ $('renderBtn').onclick=async()=>{
     // audio
     const L=mix.getChannelData(0),R=mix.getChannelData(1),CH=SR;for(let i=0;i<L.length;i+=CH){const n=Math.min(CH,L.length-i);const data=new Float32Array(n*2);data.set(L.subarray(i,i+n),0);data.set(R.subarray(i,i+n),n);ae.encode(new AudioData({format:'f32-planar',sampleRate:SR,numberOfFrames:n,numberOfChannels:2,timestamp:Math.round(i/SR*1e6),data}));}
     // video
-    const cv=new OffscreenCanvas(W,H),cx=cv.getContext('2d');const ep=episode(W,H);
+    const cv=new OffscreenCanvas(W,H),cx=cv.getContext('2d');const ep=episode(W,H);ep.watermark=!!ticket.watermark;
     const N=Math.ceil(mix.duration*FPS),t0=performance.now();
     for(let i=0;i<N;i++){
       if(encErr)throw encErr;
@@ -346,7 +356,7 @@ $('renderBtn').onclick=async()=>{
     const blob=new Blob([muxer.target.buffer],{type:'video/mp4'}),url=URL.createObjectURL(blob);
     const name=(S.plan.title||'toontake-episode').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.mp4';
     $('out').innerHTML=`<video src="${url}" controls style="max-height:520px"></video><p><a href="${url}" download="${name}"><button>⬇ Download ${esc(name)}</button></a> <span class="muted">${(blob.size/1e6).toFixed(1)} MB</span></p>`;
-    $('prog').style.width='100%';$('renderMsg').innerHTML='<span class="ok">Done!</span>';
+    $('prog').style.width='100%';$('renderMsg').innerHTML='<span class="ok">Done!</span>'+(ticket.watermark?' <span class="muted">Free exports carry a small watermark.</span>':'');refreshAccount();
   }catch(err){console.error(err);$('renderMsg').innerHTML=`<span class="err">${esc(err.message||String(err))}</span>`;}
   S.busy=false;$('renderBtn').disabled=false;
 };

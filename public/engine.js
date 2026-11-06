@@ -201,6 +201,7 @@ function frame(ep,t){
   const inCard=(ep.cards||[]).some(c=>t>=c.start&&t<=c.end);
   if(ep.captions&&line&&!inCard){const ls=wrap(line.text,vertical?22:40).slice(-2);const fs=(vertical?40:34)*u;const by=H-(vertical?H*.2:60*u);
     ls.forEach((s,k)=>{const y=by-(ls.length-1-k)*fs*1.25;svg+=`<text x="${W/2}" y="${y}" font-size="${fs}" text-anchor="middle" font-family="Arial Black,Impact,sans-serif" font-weight="900" fill="#fff" stroke="#000" stroke-width="${fs*.22}" paint-order="stroke" stroke-linejoin="round">${esc(s)}</text>`;});}
+  if(ep.watermark){const fs=22*u;svg+=`<rect x="${W-260*u}" y="${16*u}" width="${244*u}" height="${40*u}" rx="${20*u}" fill="#000" opacity=".55"/><text x="${W-138*u}" y="${43*u}" font-size="${fs}" text-anchor="middle" font-family="Arial Black,Impact,sans-serif" font-weight="900" fill="#f2c230">Made with ToonTake</text>`;}
   svg+=`</svg>`;
   return svg;
 }

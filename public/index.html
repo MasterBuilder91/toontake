@@ -49,20 +49,20 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
 </style>
 </head>
 <body>
-<div id="gate"><section style="width:min(440px,92vw)">
+<div id="gate" style="display:none"><section style="width:min(440px,92vw);position:relative"><button class="sec" id="closeGate" style="position:absolute;right:10px;top:10px;padding:2px 10px">×</button>
   <div id="authBox">
-    <h2 id="authTitle">Make cartoons from your voice</h2>
-    <p class="muted">Record an improvised bit, upload it, get an episode starring you. 7 days free, then $9.99/month. Cancel anytime.</p>
+    <h2 id="authTitle">Log in or create an account</h2>
+    <p class="muted" id="authWhy">Free: 1 export and 1 AI-directed episode a day. Unlimited: $9.99/month, no watermark, cancel anytime.</p>
     <div class="row"><input id="email" type="email" placeholder="Email" style="flex:1" autocomplete="email"></div>
     <div class="row"><input id="password" type="password" placeholder="Password (8+ characters)" style="flex:1" autocomplete="current-password"></div>
     <div class="row"><button id="loginBtn">Log in</button><button class="sec" id="signupBtn">Create account</button></div>
     <p><a href="#" id="forgot" class="muted">Forgot password?</a></p>
   </div>
   <div id="subBox" style="display:none">
-    <h2>Start your free week</h2>
-    <p>7 days free, then <b>$9.99/month</b>. A card is required to start; you won't be charged until the trial ends, and you can cancel anytime before that.</p>
-    <p class="muted">Trial includes 3 AI-directed episodes and 5 selfie characters. Unlimited voice finding, quick auto-direct, previews and MP4 exports.</p>
-    <div class="row"><button id="trialBtn">Start free trial</button><button class="sec" id="billingBtn2" style="display:none">Fix billing</button><button class="sec" id="logoutBtn2">Log out</button></div>
+    <h2>Go unlimited</h2>
+    <p id="subWhy"></p>
+    <p><b>$9.99/month.</b> Make as many episodes as you want, no watermark, 40 AI-directed episodes and 20 selfie characters a month. Cancel anytime from Billing.</p>
+    <div class="row"><button id="trialBtn">Go unlimited</button><button class="sec" id="billingBtn2" style="display:none">Fix billing</button><button class="sec" id="logoutBtn2">Log out</button></div>
   </div>
   <div id="resetBox" style="display:none">
     <h2>Choose a new password</h2>
@@ -71,7 +71,7 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
   </div>
   <p id="gateMsg" class="err"></p>
 </section></div>
-<header><h1>TOONTAKE</h1><span>Talk it. Toon it.</span><span id="acct" style="margin-left:auto;font-size:13px"></span><button class="sec" id="billingBtn" style="padding:4px 10px;display:none">Billing</button><button class="sec" id="logoutBtn" style="padding:4px 10px;display:none">Log out</button></header>
+<header><h1>TOONTAKE</h1><span>Talk it. Toon it.</span><span id="acct" style="margin-left:auto;font-size:13px"></span><button id="upBtn" style="padding:4px 10px;display:none">Go unlimited</button><button class="sec" id="signinBtn" style="padding:4px 10px;display:none">Log in</button><button class="sec" id="billingBtn" style="padding:4px 10px;display:none">Billing</button><button class="sec" id="logoutBtn" style="padding:4px 10px;display:none">Log out</button></header>
 <main>
 <section>
   <h2><b>1</b>Your cast</h2>
