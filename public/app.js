@@ -104,7 +104,12 @@ $('selfie').onchange=async e=>{
 
 // ---------- audio ----------
 let actx;const AC=()=>actx||(actx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:SR}));
-async function decode(file){const buf=await file.arrayBuffer();return await AC().decodeAudioData(buf);}
+async function decode(file){const buf=await file.arrayBuffer();return toMono(await AC().decodeAudioData(buf));}
+// Phone recordings are often stereo with one side silent (or mono). Use the live channel(s) and play it in both ears.
+function toMono(b){if(b.numberOfChannels===1)return b;const ch=[];for(let c=0;c<b.numberOfChannels;c++)ch.push(b.getChannelData(c));
+  const e=ch.map(d=>{let s=0;for(let i=0;i<d.length;i+=50)s+=d[i]*d[i];return s;});const mx=Math.max(...e);
+  const live=ch.filter((d,i)=>e[i]>mx*0.05);const out=AC().createBuffer(1,b.length,b.sampleRate),o=out.getChannelData(0);
+  for(let i=0;i<b.length;i++){let v=0;for(const d of live)v+=d[i];o[i]=v/live.length;}return out;}
 async function loadVoiceFile(f){
   S.file=f;$('audioMsg').textContent='Loading…';
   try{S.voice=await decode(f);S.lines=[];$('goBtn').disabled=false;$('audioMsg').innerHTML=`<span class="ok">${fmt(S.voice.duration)} ready</span>`;$('transcribeBtn').disabled=false;S.env=envelope(S.voice);}
@@ -127,7 +132,7 @@ $('recBtn').onclick=async()=>{
   mr.start(1000);rec={mr,timer:setInterval(()=>{$('recTime').textContent='Recording '+fmt((Date.now()-t0)/1000);},250)};
   $('recBtn').textContent='⏹ Stop';$('audioMsg').textContent='';$('recTime').textContent='Recording 0:00';
 };
-$('music').onchange=async e=>{const f=e.target.files[0];S.music=f?await decode(f):null;S.mix=null;};
+$('music').onchange=async e=>{const f=e.target.files[0];S.music=f?await AC().decodeAudioData(await f.arrayBuffer()):null;S.mix=null;};
 $('musicVol').oninput=()=>{S.mix=null;};
 
 function envelope(buf){
@@ -195,6 +200,37 @@ function features(x,rate,seg){ // x at 8 kHz
   f0s.sort((a,b)=>a-b);
   return{f0:f0s.length?f0s[Math.floor(f0s.length/2)]:null,zcr:zc?z/zc:0};
 }
+// Frame-by-frame voice tracking: works even when you switch voices with no pause.
+function splitVoices(x,segs,k){
+  const R=8000,HOP=160,W=256,n=Math.floor(x.length/HOP);
+  const speech=new Uint8Array(n);for(const sg of segs)for(let f=Math.floor(sg.start*50);f<Math.min(n,Math.ceil(sg.end*50));f++)speech[f]=1;
+  const F0=new Float32Array(n).fill(NaN),BR=new Float32Array(n),ZC=new Float32Array(n),Rr=new Float32Array(161);
+  for(let f=0;f<n;f++){if(!speech[f])continue;const p=f*HOP;if(p+W+160>=x.length)break;
+    let e0=0,d=0,z=0;for(let i=0;i<W;i++){const v=x[p+i];e0+=v*v;if(i){const dv=v-x[p+i-1];d+=dv*dv;if((v>=0)!==(x[p+i-1]>=0))z++;}}
+    if(e0<1e-5)continue;BR[f]=Math.log(d/e0+1e-6);ZC[f]=z/W;
+    let best=0;for(let L=20;L<=160;L++){let c=0,e1=0;for(let i=0;i<W;i++){c+=x[p+i]*x[p+i+L];e1+=x[p+i+L]*x[p+i+L];}Rr[L]=c/Math.sqrt(e0*e1+1e-9);if(Rr[L]>best)best=Rr[L];}
+    if(best>.45){for(let L=21;L<160;L++)if(Rr[L]>=.88*best&&Rr[L]>=Rr[L-1]&&Rr[L]>=Rr[L+1]){F0[f]=Math.log(R/L);break;}}}
+  // smooth pitch with a running median so octave slips don't flip the voice
+  const med=(arr,i,h)=>{const v=[];for(let j=i-h;j<=i+h;j++)if(j>=0&&j<n&&!isNaN(arr[j]))v.push(arr[j]);if(!v.length)return NaN;v.sort((a,b)=>a-b);return v[v.length>>1];};
+  const WIN=22;const P=new Float32Array(n).fill(NaN),B=new Float32Array(n);for(let f=0;f<n;f++)if(speech[f]&&!isNaN(F0[f])){P[f]=med(F0,f,WIN);const v=[];for(let j=Math.max(0,f-WIN);j<=Math.min(n-1,f+WIN);j++)if(speech[j]&&!isNaN(F0[j]))v.push(BR[j]);v.sort((a,b)=>a-b);B[f]=v.length?v[v.length>>1]:BR[f];}
+  const idx=[];for(let f=0;f<n;f++)if(speech[f]&&!isNaN(P[f]))idx.push(f);
+  const lab=new Int16Array(n).fill(-1);
+  if(k>1&&idx.length>20){
+    const mean=a=>a.reduce((s,v)=>s+v,0)/a.length,sd=(a,m)=>Math.sqrt(mean(a.map(v=>(v-m)**2)))||1;
+    const pv=idx.map(f=>P[f]),bv=idx.map(f=>B[f]),mp=mean(pv),sp=sd(pv,mp),mb=mean(bv),sb=sd(bv,mb);
+    const L=kmeans(idx.map(f=>[1.5*(P[f]-mp)/sp,(B[f]-mb)/sb]),k);idx.forEach((f,i)=>lab[f]=L[i]);
+  }else idx.forEach(f=>lab[f]=0);
+  // fill unvoiced speech frames from the nearest voiced neighbour, then majority-filter over ~0.4 s
+  let last=-1;for(let f=0;f<n;f++){if(!speech[f]){last=-1;continue;}if(lab[f]>=0)last=lab[f];else if(last>=0)lab[f]=last;}
+  last=-1;for(let f=n-1;f>=0;f--){if(!speech[f]){last=-1;continue;}if(lab[f]>=0)last=lab[f];else if(last>=0)lab[f]=last;}
+  const sm=new Int16Array(n).fill(-1);for(let f=0;f<n;f++){if(!speech[f]||lab[f]<0)continue;const cnt=new Array(k).fill(0);for(let j=Math.max(0,f-10);j<=Math.min(n-1,f+10);j++)if(speech[j]&&lab[j]>=0)cnt[lab[j]]++;sm[f]=cnt.indexOf(Math.max(...cnt));}
+  // runs -> lines
+  const runs=[];for(let f=0;f<n;f++){if(sm[f]<0)continue;const r=runs[runs.length-1];if(r&&r.lab===sm[f]&&f-r.e<=30&&(f-r.s)<450)r.e=f;else runs.push({lab:sm[f],s:f,e:f});}
+  // absorb tiny runs (<0.3 s) into a neighbour
+  for(let i=0;i<runs.length;i++){const r=runs[i];if(r.e-r.s<25&&runs.length>1){const nb=runs[i-1]||runs[i+1];if(nb){nb.s=Math.min(nb.s,r.s);nb.e=Math.max(nb.e,r.e);runs.splice(i,1);i--;}}}
+  const out=[];for(const r of runs){const L=out[out.length-1];if(L&&L.spk==='speaker_'+r.lab&&r.s/50-L.end<.6&&r.e/50-L.start<9)L.end=(r.e+1)/50;else out.push({spk:'speaker_'+r.lab,start:r.s/50,end:(r.e+1)/50,text:'',fx:'none'});}
+  return out;
+}
 function kmeans(pts,k){
   if(k<=1)return pts.map(()=>0);
   const order=pts.map((p,i)=>i).sort((a,b)=>pts[a][0]-pts[b][0]);
@@ -228,14 +264,7 @@ async function findVoices(){
     let k=+$('nspk').value||2;
     if($('format').value==='monologue'&&$('nspk').value==='0')k=1;
     $('trMsg').textContent='Telling the voices apart…';await new Promise(r=>setTimeout(r,20));
-    const F=segs.map(s=>features(x8,8000,s));
-    const vf=F.filter(f=>f.f0!=null),mean=a=>a.reduce((s,v)=>s+v,0)/Math.max(1,a.length),sd=(a,m)=>Math.sqrt(mean(a.map(v=>(v-m)**2)))||1;
-    const mf=mean(vf.map(f=>f.f0)),sf=sd(vf.map(f=>f.f0),mf),mz=mean(F.map(f=>f.zcr)),sz=sd(F.map(f=>f.zcr),mz);
-    const pts=F.map(f=>[f.f0==null?0:2*(f.f0-mf)/sf,(f.zcr-mz)/sz]);
-    const lab=kmeans(pts,Math.min(k,segs.length));
-    segs.forEach((s,i)=>s.spk='speaker_'+lab[i]);
-    // merge neighbours from the same voice
-    const lines=[];for(const s of segs){const L=lines[lines.length-1];if(L&&L.spk===s.spk&&s.start-L.end<.6&&s.end-L.start<9)L.end=s.end;else lines.push({spk:s.spk,start:s.start,end:s.end,text:'',fx:'none'});}
+    const lines=splitVoices(x8,segs,k);
     if($('doWords').checked){
       try{const words=await runWhisper(x16);
         for(const w of words){const mid=(w.start+w.end)/2;let best=null,bd=1e9;for(const l of lines){const d=mid<l.start?l.start-mid:mid>l.end?mid-l.end:0;if(d<bd){bd=d;best=l;}}if(best&&bd<1.5)best.text=(best.text+' '+w.text.trim()).trim();}
