@@ -282,17 +282,27 @@ $('planBtn').onclick=async()=>{
   btn.disabled=false;
 };
 $('autoBtn').onclick=()=>{applyPlan(autoPlan());$('planMsg').innerHTML='<span class="ok">Auto-directed.</span>';};
+function maxEnv(l){let m=0;for(let f=Math.floor(l.start*30);f<l.end*30&&f<S.env.length;f++)m=Math.max(m,S.env[f]);return m;}
 function autoPlan(){
   const fmtv=$('format').value,vertical=$('aspect').value==='9:16';
   const cast=[...new Set(S.lines.map(l=>l.char))];
   const set={bit:'living_room',monologue:'void',confessional:'living_room',news:'newsdesk'}[fmtv];
   const scenes=[{start:0,set,cast}];const shots=[];
   S.lines.forEach((l,i)=>{const long=l.end-l.start>2.2;const close=vertical?(i%3!==2):(long&&i%2===0)||cast.length===1&&i%2===0;shots.push({start:Math.max(0,l.start-.1),type:close?'close':'wide',on:l.char});});
-  return{title:'',scenes,shots,fx:[],props:[],cards:[],notes:'Quick auto-direct: one set, cuts follow whoever is talking.'};
+  // cheap comedy for free: questions get a confused listener, shouted/excited lines get a snap zoom + sting
+  const beats=[],reactions=[],sfx=[];let lastGag=-9;
+  S.lines.forEach((l,i)=>{const nxt=S.lines[i+1];const other=cast.find(c=>c!==l.char);
+    if(l.text&&/\?$/.test(l.text.trim())&&other)reactions.push({on:other,face:'confused',start:l.end-.4,end:l.end+1.2});
+    const loud=l.text?/!$/.test(l.text.trim())||l.text===l.text.toUpperCase()&&/[A-Z]{3}/.test(l.text):(S.env&&maxEnv(l)>.95);
+    if(loud&&l.start-lastGag>(l.text?6:15)){beats.push({type:'zoom',start:l.start,end:Math.min(l.end,l.start+1.4),on:l.char});sfx.push({t:l.start,sound:'whoosh'});if(other)reactions.push({on:other,face:'shocked',start:l.end,end:l.end+1.4});lastGag=l.start;}
+    if(nxt&&nxt.start-l.end>1.2&&other&&l.start-lastGag>5){shots.push({start:l.end+.05,type:'close',on:other});sfx.push({t:l.end+.2,sound:'crickets'});lastGag=l.start;}
+  });
+  shots.sort((a,b)=>a.start-b.start);
+  return{title:'',scenes,shots,beats,reactions,sfx,fx:[],props:[],cards:[],notes:'Quick auto-direct: one set, cuts follow whoever is talking, with a few automatic gags (reactions, snap zooms, awkward-silence crickets).'};
 }
 function applyPlan(p){
   const ids=new Set(S.chars.map(c=>c.id));
-  S.plan={title:p.title||'',scenes:(p.scenes||[]).filter(s=>Toon.SETS[s.set]).map(s=>({start:+s.start||0,set:s.set,cast:(s.cast||[]).filter(id=>ids.has(id))})),shots:(p.shots||[]).map(s=>({start:+s.start||0,type:s.type==='close'?'close':'wide',on:s.on})).sort((a,b)=>a.start-b.start),props:(p.props||[]).filter(x=>x.emoji),cards:(p.cards||[])};
+  S.plan={title:p.title||'',beats:(p.beats||[]).filter(b=>['zoom','shake','freeze'].includes(b.type)).map(b=>({...b,start:+b.start,end:+b.end})),reactions:(p.reactions||[]).filter(r=>ids.has(r.on)),sfx:(p.sfx||[]).filter(x=>SFX_NAMES.includes(x.sound)),scenes:(p.scenes||[]).filter(s=>Toon.SETS[s.set]).map(s=>({start:+s.start||0,set:s.set,cast:(s.cast||[]).filter(id=>ids.has(id)),cutaway:!!s.cutaway,label:s.label||''})),shots:(p.shots||[]).map(s=>({start:+s.start||0,type:s.type==='close'?'close':'wide',on:s.on})).sort((a,b)=>a.start-b.start),props:(p.props||[]).filter(x=>x.emoji),cards:(p.cards||[])};
   if(!S.plan.scenes.length)S.plan.scenes=[{start:0,set:'living_room',cast:[...new Set(S.lines.map(l=>l.char))]}];
   S.plan.scenes.sort((a,b)=>a.start-b.start);S.plan.scenes[0].start=0;
   for(const f of(p.fx||[]))if(S.lines[f.line]&&FXS.includes(f.fx))S.lines[f.line].fx=f.fx;
@@ -320,7 +330,7 @@ function invalidate(){S.mix=null;}
 
 function episode(W,H){
   const cast={};S.chars.forEach(c=>cast[c.id]=c);
-  return{W,H,cast,lines:S.lines.map((l,i)=>({start:l.start,end:l.end,char:l.char,text:l.text||'',idx:i})),scenes:S.plan.scenes,shots:S.plan.shots,props:S.plan.props,cards:S.plan.cards,title:S.plan.title,captions:$('captions').checked,env:S.env};
+  return{W,H,cast,lines:S.lines.map((l,i)=>({start:l.start,end:l.end,char:l.char,text:l.text||'',idx:i})),scenes:S.plan.scenes,shots:S.plan.shots,props:S.plan.props,cards:S.plan.cards,title:S.plan.title,beats:S.plan.beats,reactions:S.plan.reactions,captions:$('captions').checked,env:S.env};
 }
 function dims(){return $('aspect').value==='9:16'?[720,1280]:[1280,720];}
 
@@ -341,6 +351,25 @@ function fxChain(ctx,fx,dest,irShort,irLong){
   }
   return inp;
 }
+// ---------- synthesized gag sounds (free, no API) ----------
+const SFX_NAMES=['whoosh','scratch','crickets','sting','rimshot','pop','boing','dun'];
+function noiseBuf(ctx,sec){const b=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*sec),ctx.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;return b;}
+function playSfx(ctx,dest,name,t){
+  const g=ctx.createGain();g.connect(dest);
+  const tone=(type,f0,f1,st,dur,vol)=>{const o=ctx.createOscillator();o.type=type;o.frequency.setValueAtTime(f0,st);if(f1)o.frequency.exponentialRampToValueAtTime(f1,st+dur);const e=ctx.createGain();e.gain.setValueAtTime(0,st);e.gain.linearRampToValueAtTime(vol,st+.01);e.gain.exponentialRampToValueAtTime(.001,st+dur);o.connect(e);e.connect(g);o.start(st);o.stop(st+dur+.05);return o;};
+  const noise=(st,dur,type,f0,f1,vol,q)=>{const n=ctx.createBufferSource();n.buffer=noiseBuf(ctx,dur+.05);const f=ctx.createBiquadFilter();f.type=type;f.frequency.setValueAtTime(f0,st);if(f1)f.frequency.exponentialRampToValueAtTime(f1,st+dur);if(q)f.Q.value=q;const e=ctx.createGain();e.gain.setValueAtTime(0,st);e.gain.linearRampToValueAtTime(vol,st+dur*.3);e.gain.exponentialRampToValueAtTime(.001,st+dur);n.connect(f);f.connect(e);e.connect(g);n.start(st);return f;};
+  switch(name){
+    case'whoosh':noise(t,.45,'bandpass',300,3000,.5,1.2);break;
+    case'scratch':{const f=noise(t,.5,'bandpass',800,0,.7,4);for(let k=0;k<5;k++)f.frequency.setValueAtTime(k%2?2500:600,t+k*.09);break;}
+    case'crickets':for(let k=0;k<6;k++){const st=t+k*.32;for(let j=0;j<3;j++)tone('sine',4600,0,st+j*.045,.035,.12);}break;
+    case'sting':[220,277,330,440].forEach(f=>tone('sawtooth',f,0,t,1.1,.09));break;
+    case'rimshot':tone('sine',180,90,t,.18,.5);tone('sine',140,70,t+.22,.2,.5);noise(t+.45,.35,'highpass',5000,0,.5);break;
+    case'pop':tone('sine',900,200,t,.12,.5);break;
+    case'boing':{const o=tone('triangle',150,500,t,.6,.4);const l=ctx.createOscillator(),lg=ctx.createGain();l.frequency.value=14;lg.gain.value=40;l.connect(lg);lg.connect(o.frequency);l.start(t);l.stop(t+.65);break;}
+    case'dun':[0,.3,.6].forEach((d,k)=>[98,116.5,147].forEach(f=>tone('sawtooth',f*(k===2?.95:1),0,t+d,k===2?1.2:.28,.12)));break;
+  }
+}
+
 async function buildMix(){
   if(S.mix)return S.mix;
   const dur=S.voice.duration+0.6,ctx=new OfflineAudioContext(2,Math.ceil(dur*SR),SR);
@@ -356,6 +385,7 @@ async function buildMix(){
     src.connect(g);g.connect(fxChain(ctx,r.fx,master,irShort,irLong));src.start(r.a,r.a,len+.02);
   }
   if(S.music){const m=ctx.createBufferSource();m.buffer=S.music;m.loop=true;const g=ctx.createGain();g.gain.value=+$('musicVol').value;g.gain.setValueAtTime(+$('musicVol').value,Math.max(0,dur-1.2));g.gain.linearRampToValueAtTime(0,dur);m.connect(g);g.connect(ctx.destination);m.start(0);}
+  for(const x of((S.plan&&S.plan.sfx)||[]))if(SFX_NAMES.includes(x.sound)&&x.t>=0&&x.t<dur)playSfx(ctx,master,x.sound,x.t);
   S.mix=await ctx.startRendering();
   return S.mix;
 }

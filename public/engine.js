@@ -65,8 +65,11 @@ function head(t,s){
   if(must)g+=`<path d="M-42 64 C-30 52 -12 52 0 55 C12 52 30 52 42 64 C44 70 42 76 40 78 C34 70 22 64 0 64 C-22 64 -34 70 -40 78 C-42 76 -44 70 -42 64Z" fill="${FC}"/>`;
   if(t.beard==='jaw')g+=`<path d="M-10 92 C-6 100 6 100 10 92 C6 106 -6 106 -10 92Z" fill="${FC}"/>`;
   // mouth
-  const lip=shade(SK,-.3),open=s.open||0;
-  if(open>.06){const h=8+open*30;
+  const lip=shade(SK,-.3),open=s.open||0,face=s.face||'';
+  if(face==='shocked'&&open<.3){g+=`<ellipse cx="0" cy="80" rx="20" ry="24" fill="#2a0a0a" stroke="${OL}" stroke-width="5"/>`;}
+  else if(face==='smug'&&open<.3){g+=`<path d="M-30 74 C-10 80 14 78 34 64" stroke="${OL}" stroke-width="6" fill="none" stroke-linecap="round"/>`;}
+  else if(face==='confused'&&open<.3){g+=`<path d="M-24 80 C-10 74 6 84 24 76" stroke="${OL}" stroke-width="6" fill="none" stroke-linecap="round"/>`;}
+  else if(open>.06){const h=8+open*30;
     g+=`<path d="M-32 70 C-16 62 16 62 32 70 C24 ${74+h} -24 ${74+h} -32 70Z" fill="${lip}" stroke="${OL}" stroke-width="4"/><path d="M-24 72 C-12 68 12 68 24 72 C16 ${70+h} -16 ${70+h} -24 72Z" fill="#2a0a0a"/><path d="M-18 72 C-8 70 8 70 18 72 L16 77 C6 75 -6 75 -16 77Z" fill="#f4eee0"/>`;
   }else g+=`<path d="M-34 70 C-20 64 20 64 34 70 C24 ${s.frown?80:90} -24 ${s.frown?80:90} -34 70Z" fill="${lip}" stroke="${OL}" stroke-width="4"/><path d="M-32 71 C-12 ${s.frown?68:76} 12 ${s.frown?68:76} 32 71" stroke="${OL}" stroke-width="3" fill="none"/>`;
   // nose
@@ -75,16 +78,17 @@ function head(t,s){
   const blink=s.blink;
   [-46,46].forEach(x=>{
     g+=`<path d="M${x-28} -62 C${x-16} -80 ${x+16} -80 ${x+28} -62 C${x+16} -48 ${x-16} -48 ${x-28} -62Z" fill="#fff" stroke="${OL}" stroke-width="4"/>`;
-    g+=`<circle cx="${x+look}" cy="-62" r="10" fill="#2a160c"/><circle cx="${x+3+look}" cy="-65" r="3" fill="#fff"/>`;
-    const lidY=blink?-46:(t.eyes==='heavy'?-70:-78);
-    if(blink||t.eyes==='heavy')g+=`<path d="M${x-30} -64 C${x-16} -84 ${x+16} -84 ${x+30} -64 C${x+16} ${lidY} ${x-16} ${lidY} ${x-30} -64Z" fill="${SK2}" stroke="${OL}" stroke-width="4"/>`;
+    const pr=face==='shocked'?6:10;
+    g+=`<circle cx="${x+look}" cy="-62" r="${pr}" fill="#2a160c"/><circle cx="${x+3+look}" cy="-65" r="3" fill="#fff"/>`;
+    const lidY=blink?-46:(face==='smug'?-62:(t.eyes==='heavy'?-70:-78));
+    if(face!=='shocked'&&(blink||t.eyes==='heavy'||face==='smug'))g+=`<path d="M${x-30} -64 C${x-16} -84 ${x+16} -84 ${x+30} -64 C${x+16} ${lidY} ${x-16} ${lidY} ${x-30} -64Z" fill="${SK2}" stroke="${OL}" stroke-width="4"/>`;
   });
   if(t.glasses)g+=`<rect x="-82" y="-86" width="70" height="50" rx="16" fill="#cfe6f5" fill-opacity=".25" stroke="${OL}" stroke-width="7"/><rect x="12" y="-86" width="70" height="50" rx="16" fill="#cfe6f5" fill-opacity=".25" stroke="${OL}" stroke-width="7"/><path d="M-12 -64 L12 -64 M-82 -64 L-112 -70 M82 -64 L112 -70" stroke="${OL}" stroke-width="6"/>`;
   // brows
-  const b=s.brow||0,bc=t.headwear==='hijab'?FC:(t.hair==='bald'?FC:t.hairColor===undefined?FC:FC);
+  const b=(s.brow||0)+(face==='shocked'?16:0),bc=t.headwear==='hijab'?FC:(t.hair==='bald'?FC:t.hairColor===undefined?FC:FC);
   const arch=t.brows==='straight'?-96:-112, w=t.brows==='thin'?7:11;
-  const by=s.angry?8:0;
-  g+=`<path d="M-82 ${-88-b} Q-56 ${arch-b+by} -20 ${-94-b*.6+by*1.6}" stroke="${bc}" stroke-width="${w}" fill="none" stroke-linecap="round"/><path d="M20 ${-94-b*.6+by*1.6} Q56 ${arch-b+by} 82 ${-88-b}" stroke="${bc}" stroke-width="${w}" fill="none" stroke-linecap="round"/>`;
+  const by=(s.angry||face==='angry')?8:0,bl=face==='confused'||face==='smug'?14:0,br2=face==='confused'?-6:0;
+  g+=`<path d="M-82 ${-88-b-bl} Q-56 ${arch-b+by-bl} -20 ${-94-b*.6+by*1.6-bl}" stroke="${bc}" stroke-width="${w}" fill="none" stroke-linecap="round"/><path d="M20 ${-94-b*.6+by*1.6-br2} Q56 ${arch-b+by-br2} 82 ${-88-b-br2}" stroke="${bc}" stroke-width="${w}" fill="none" stroke-linecap="round"/>`;
   g+=headwear(t);
   return g;
 }
@@ -170,23 +174,30 @@ function frame(ep,t){
   if(castIds.length===1&&!tgt){vw=vertical?900:1500;cx=xs[0];}
   if(tgt){const i=castIds.indexOf(tgt);const y0=feet-720*charScale;cx=xs[i];cy=y0+70*charScale;vw=vertical?400:820;}
   vw/= (1+Math.min(sinceCut,8)*.006); // slow push-in
+  const active=(arr,ty)=>(arr||[]).find(b=>b.type===ty&&t>=b.start&&t<=b.end);
+  const zb=active(ep.beats,'zoom');
+  if(zb&&castIds.includes(zb.on)){const i=castIds.indexOf(zb.on),y0=feet-720*charScale,k=easeInOut(Math.min(1,(t-zb.start)/.12));cx=lerp(cx,xs[i],k);cy=lerp(cy,y0-10*charScale,k);vw=lerp(vw,vertical?330:640,k);}
+  const sb=active(ep.beats,'shake');
+  if(sb){const a=(1-(t-sb.start)/Math.max(.1,sb.end-sb.start))*22;cx+=Math.sin(t*93)*a;cy+=Math.cos(t*71)*a;}
+  const fb=active(ep.beats,'freeze');const ta=fb?fb.start:t; // character animation time
   const z=W/vw;
   let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g transform="translate(${W/2},${H/2}) scale(${z}) translate(${-cx},${-cy})">`;
   svg+=set.bg();
   castIds.forEach((id,i)=>{
     const tr=ep.cast[id];const talking=id===spk;
-    const open=talking?amp:0;
+    const open=talking&&!fb?amp:0;
     const seed=i*1.7;
-    const blink=((t+seed*1.3)%3.9)<.12;
-    const bob=Math.sin(t*2.1+seed)*4+open*6;
-    const tilt=Math.sin(t*1.2+seed)*2+(talking?Math.sin(t*3)*1.5:0);
+    const blink=!fb&&((ta+seed*1.3)%3.9)<.12;
+    const rb=(ep.reactions||[]).find(r=>r.on===id&&t>=r.start&&t<=r.end);const face=rb?rb.face:'';
+    const bob=Math.sin(ta*2.1+seed)*4+open*6;
+    const tilt=Math.sin(ta*1.2+seed)*2+(talking?Math.sin(ta*3)*1.5:0)+(face==='confused'?7:0);
     const brow=open>.85?10:open*4;
     let look=0;if(spk&&!talking&&castIds.includes(spk))look=Math.sign(castIds.indexOf(spk)-i)*7;
     // gestures while talking
     let pose=POSES.idle;
-    if(talking&&line){const g=['idle','point','shrug','hips','idle','wave'][(line.idx||0)%6];const d=t-line.start,r=line.end-t;const k=Math.max(0,Math.min(1,d/.3,r/.3));pose=mixPose('idle',g,easeInOut(k));}
+    if(talking&&line){const g=['idle','point','shrug','hips','idle','wave'][(line.idx||0)%6];const d=ta-line.start,r=line.end-t;const k=Math.max(0,Math.min(1,d/.3,r/.3));pose=mixPose('idle',g,easeInOut(k));}
     const x=xs[i],y0=feet-720*charScale;
-    svg+=`<g transform="translate(${x},${y0}) scale(${charScale})">${character(tr,{open,blink,bob,tilt,brow,look},pose)}</g>`;
+    svg+=`<g transform="translate(${x},${y0}) scale(${charScale})">${character(tr,{open,blink,bob,tilt,brow,look,face,angry:face==='angry',frown:face==='angry'},pose)}</g>`;
   });
   if(set.fg)svg+=set.fg();
   svg+=`</g>`;
@@ -197,6 +208,8 @@ function frame(ep,t){
     if(p.label)svg+=`<text x="${px}" y="${py+sz+bounce+10*u}" font-size="${30*u}" text-anchor="middle" font-family="Arial Black,Impact,sans-serif" fill="#fff" stroke="#000" stroke-width="${7*u}" paint-order="stroke">${esc(p.label.toUpperCase())}</text>`;}
   if(sc.set==='confessional'&&castIds.length===1){const nm=ep.cast[castIds[0]].name||'';svg+=`<rect x="${40*u}" y="${H*.62}" width="${Math.max(260,nm.length*24+60)*u}" height="${70*u}" fill="#b3202c"/><text x="${60*u}" y="${H*.62+48*u}" font-size="${40*u}" font-family="Arial Black,Impact,sans-serif" fill="#fff">${esc(nm.toUpperCase())}</text>`;}
   for(const c of(ep.cards||[]))if(t>=c.start&&t<=c.end){svg+=`<rect width="${W}" height="${H}" fill="#000" opacity=".82"/><text x="${W/2}" y="${H/2}" font-size="${64*u}" text-anchor="middle" dominant-baseline="middle" font-family="Arial Black,Impact,sans-serif" fill="#f2c230">${esc(c.text)}</text>`;}
+  if(fb){svg+=`<rect width="${W}" height="${H}" fill="#7a6a50" opacity=".22"/>`;if(fb.text){const ls=wrap(fb.text,vertical?24:44).slice(0,3),fs=34*u;ls.forEach((x,k)=>{svg+=`<text x="${W/2}" y="${H*.14+k*fs*1.3}" font-size="${fs}" text-anchor="middle" font-family="Georgia,serif" font-style="italic" fill="#fff" stroke="#000" stroke-width="${fs*.18}" paint-order="stroke">${esc(x)}</text>`;});}}
+  if(sc.cutaway){const k=t-sc.start;if(k<.25)svg+=`<rect width="${W}" height="${H}" fill="#fff" opacity="${1-k/.25}"/>`;if(sc.label)svg+=`<rect x="${20*u}" y="${20*u}" width="${(sc.label.length*21+44)*u}" height="${52*u}" rx="${10*u}" fill="#f2c230" stroke="#000" stroke-width="${4*u}"/><text x="${40*u}" y="${56*u}" font-size="${30*u}" font-family="Arial Black,Impact,sans-serif" font-weight="900" fill="#000">${esc(sc.label.toUpperCase())}</text>`;}
   if(ep.title&&t<2.2){const a=t<1.8?1:(2.2-t)/.4;svg+=`<g opacity="${a}"><rect x="0" y="${H*.08}" width="${W}" height="${110*u}" fill="#000" opacity=".7"/><text x="${W/2}" y="${H*.08+72*u}" font-size="${58*u}" text-anchor="middle" font-family="Arial Black,Impact,sans-serif" fill="#fff">${esc(ep.title)}</text></g>`;}
   const inCard=(ep.cards||[]).some(c=>t>=c.start&&t<=c.end);
   if(ep.captions&&line&&!inCard){const ls=wrap(line.text,vertical?22:40).slice(-2);const fs=(vertical?40:34)*u;const by=H-(vertical?H*.2:60*u);
