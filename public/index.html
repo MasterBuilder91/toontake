@@ -111,11 +111,15 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
   <label>Notes for the director (optional)</label>
   <textarea id="notes" placeholder="e.g. 'This takes place in a laundromat. The second voice is a talking hot pocket.'"></textarea>
   <div class="row"><label><input type="checkbox" id="doWords" checked> Also catch the words (for captions and AI directing). Runs on your device; downloads a speech model once (~80 MB).</label></div>
-  <div class="row"><button id="transcribeBtn" disabled>Find the voices</button><span id="trMsg" class="muted"></span></div>
+  <div class="row" style="margin-top:14px"><button id="goBtn" disabled style="font-size:22px;padding:14px 28px">✨ Make my cartoon</button><span id="goMsg" class="muted"></span></div>
+  <details style="margin-top:10px"><summary class="muted">More audio options</summary>
+  <div class="row"><button class="sec" id="transcribeBtn" disabled>Find the voices only</button><span id="trMsg" class="muted"></span></div>
+  </details>
 </section>
 
+<details id="finetune"><summary style="font-weight:800;margin:0 0 14px;cursor:pointer">✏️ Fine-tune: who's who, scene plan, AI directing (optional)</summary>
 <section>
-  <h2><b>3</b>Who's who</h2>
+  <h2>Who's who</h2>
   <p class="muted">Voices are split by how they sound (pitch and tone), so exaggerate your character voices. Match each voice to a character and fix any line that went to the wrong person.</p>
   <div id="spkMap" class="row"></div>
   <div class="lines" id="lines"><p class="muted" style="padding:8px">Transcribe your audio first.</p></div>
@@ -123,15 +127,16 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
 </section>
 
 <section>
-  <h2><b>4</b>Scene plan</h2>
+  <h2>Scene plan</h2>
   <div id="planNotes" class="muted"></div>
   <div class="row"><label>Title <input type="text" id="title" size="40"></label></div>
   <div id="scenes"></div>
   <div class="row"><button class="sec" id="addScene" disabled>+ Scene change</button></div>
 </section>
 
+</details>
 <section>
-  <h2><b>5</b>Watch and export</h2>
+  <h2><b>3</b>Watch and export</h2>
   <canvas id="stage" width="1280" height="720"></canvas>
   <div class="row"><button id="playBtn" disabled>▶ Preview</button><button class="sec" id="stopBtn" disabled>■ Stop</button><button id="renderBtn" disabled>Render MP4</button><span id="renderMsg" class="muted"></span></div>
   <div class="bar"><i id="prog"></i></div>

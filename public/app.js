@@ -106,7 +106,7 @@ let actx;const AC=()=>actx||(actx=new (window.AudioContext||window.webkitAudioCo
 async function decode(file){const buf=await file.arrayBuffer();return await AC().decodeAudioData(buf);}
 async function loadVoiceFile(f){
   S.file=f;$('audioMsg').textContent='Loading…';
-  try{S.voice=await decode(f);$('audioMsg').innerHTML=`<span class="ok">${fmt(S.voice.duration)} loaded</span>`;$('transcribeBtn').disabled=false;S.env=envelope(S.voice);}
+  try{S.voice=await decode(f);S.lines=[];$('goBtn').disabled=false;$('audioMsg').innerHTML=`<span class="ok">${fmt(S.voice.duration)} ready</span>`;$('transcribeBtn').disabled=false;S.env=envelope(S.voice);}
   catch(err){$('audioMsg').innerHTML=`<span class="err">Couldn't read that file. Try MP3, WAV or M4A.</span>`;}
 }
 $('audio').onchange=e=>{const f=e.target.files[0];if(f)loadVoiceFile(f);};
@@ -161,12 +161,12 @@ $('ttsBtn').onclick=async()=>{
     const gap=.35,lead=.3;let t=lead;const placed=bufs.map(b=>{const st=t;t+=b.duration+gap;return st;});
     const total=t+.3,out=new OfflineAudioContext(2,Math.ceil(total*SR),SR);
     bufs.forEach((b,i)=>{const src=out.createBufferSource();src.buffer=b;src.connect(out.destination);src.start(placed[i]);});
-    S.voice=await out.startRendering();S.env=envelope(S.voice);S.file=null;
-    S.lines=lines.map((l,i)=>({spk:l.char,char:l.char,start:placed[i],end:placed[i]+bufs[i].duration,text:l.text,fx:'none'}));
+    S.voice=await out.startRendering();S.env=envelope(S.voice);S.file=null;S.linesFrom=null;
+    S.linesFrom=S.voice;S.lines=lines.map((l,i)=>({spk:l.char,char:l.char,start:placed[i],end:placed[i]+bufs[i].duration,text:l.text,fx:'none'}));
     S.spkMap={};[...new Set(S.lines.map(l=>l.char))].forEach(id=>S.spkMap[id]=id);
     renderLines();invalidate();
     $('ttsMsg').innerHTML=`<span class="ok">${lines.length} lines voiced (${fmt(S.voice.duration)}). Typed-script use this month: ${d.charsUsed.toLocaleString()}/${d.charsLimit.toLocaleString()} characters.</span>`;
-    $('planBtn').disabled=$('autoBtn').disabled=false;
+    $('planBtn').disabled=$('autoBtn').disabled=false;$('goBtn').disabled=false;
   }catch(e){$('ttsMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}
   $('ttsBtn').disabled=false;
 };
@@ -217,8 +217,8 @@ function runWhisper(audio16){
     w.postMessage({audio:audio16});
   });
 }
-$('transcribeBtn').onclick=async()=>{
-  if(!S.voice)return;const btn=$('transcribeBtn');btn.disabled=true;
+async function findVoices(){
+  if(!S.voice)return false;const btn=$('transcribeBtn');btn.disabled=true;let ok=false;
   try{
     $('trMsg').textContent='Finding the lines…';
     const x16=await resample(S.voice,16000),x8=await resample(S.voice,8000);
@@ -247,10 +247,11 @@ $('transcribeBtn').onclick=async()=>{
     renderLines();
     const hasText=S.lines.some(l=>l.text);
     $('trMsg').innerHTML=`<span class="ok">${S.lines.length} lines, ${spks.length} voice${spks.length>1?'s':''}${hasText?'':' (no words, so captions and AI directing are off)'}</span>`;
-    $('planBtn').disabled=!hasText;$('autoBtn').disabled=false;
+    $('planBtn').disabled=!hasText;$('autoBtn').disabled=false;ok=true;
   }catch(err){$('trMsg').innerHTML=`<span class="err">${esc(err.message)}</span>`;}
-  btn.disabled=false;
-};
+  btn.disabled=false;return ok;
+}
+$('transcribeBtn').onclick=()=>findVoices();
 function refreshSpeakerMap(){
   const el=$('spkMap');if(!S.lines.length){el.innerHTML='';return;}
   const spks=Object.keys(S.spkMap).sort();el.innerHTML='';
@@ -413,8 +414,28 @@ $('renderBtn').onclick=async()=>{
   S.busy=false;$('renderBtn').disabled=false;
 };
 
+// ---------- one button: make my cartoon ----------
+const status=t=>{$('goMsg').innerHTML=t;};
+$('goBtn').onclick=async()=>{
+  if(!S.voice){status('<span class="err">Record or choose your audio first.</span>');return;}
+  $('goBtn').disabled=true;
+  try{
+    if(!S.lines.length||S.linesFrom!==S.voice){
+      status('Finding the voices…');
+      const ok=await findVoices();if(!ok)throw new Error($('trMsg').textContent||'Could not find the voices.');
+      S.linesFrom=S.voice;
+    }
+    status('Directing…');
+    if(paidNow()&&S.lines.some(l=>l.text)){await $('planBtn').onclick();}else{applyPlan(autoPlan());}
+    status('<span class="ok">Your cartoon is ready. Scroll down, tap <b>▶ Preview</b> to watch, then <b>Render MP4</b> to save it.</span>');
+    $('stage').scrollIntoView({behavior:'smooth',block:'center'});
+  }catch(e){status(`<span class="err">${esc(e.message)}</span>`);}
+  $('goBtn').disabled=false;
+};
+
 function fmt(s){s=Math.max(0,s);const m=Math.floor(s/60),x=Math.floor(s%60);return`${m}:${String(x).padStart(2,'0')}`;}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+if(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent))$('doWords').checked=false;
 renderCast();
 window._S=S;window._applyPlan=applyPlan;window._decode=decode;window._envelope=envelope;
 })();
