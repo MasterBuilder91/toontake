@@ -28,7 +28,8 @@ function upgrade(why){
 }
 function paidNow(){const u=S.me&&S.me.user;return !!(u&&(u.admin||['trialing','active'].includes(u.status)));}
 async function refreshAccount(){
-  let d;try{d=await (await fetch('/api/me',{credentials:'same-origin'})).json();}catch(e){d={user:null,usage:null};}
+  let d;try{d=await (await fetch('/api/me',{credentials:'same-origin'})).json();}catch(e){d={user:null,usage:null,demo:true};}
+  if(d.demo){S.me=d;['upBtn','signinBtn','billingBtn','logoutBtn'].forEach(id=>$(id).style.display='none');$('acct').textContent='Preview build: free features only';return;}
   S.me=d;const u=d.user,us=d.usage;const paid=u&&(u.admin||['trialing','active'].includes(u.status));
   $('logoutBtn').style.display=u?'inline-block':'none';
   $('signinBtn').style.display=u?'none':'inline-block';
@@ -116,7 +117,7 @@ $('recBtn').onclick=async()=>{
   if(rec){rec.mr.stop();return;}
   if(!navigator.mediaDevices||!window.MediaRecorder){$('audioMsg').innerHTML='<span class="err">This browser can\'t record. Use "Choose a file" instead.</span>';return;}
   let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:true,autoGainControl:true}});}
-  catch(e){$('audioMsg').innerHTML='<span class="err">Microphone blocked. Allow mic access for this site in your browser settings, then try again.</span>';return;}
+  catch(e){$('audioMsg').innerHTML='<span class="err">The microphone is blocked here. Allow mic access for this site in your browser settings, or record with your phone\'s voice memo app and use 📁 Choose a file.</span>';return;}
   const type=['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg'].find(t=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t))||'';
   const mr=new MediaRecorder(stream,type?{mimeType:type}:undefined),chunks=[],t0=Date.now();
   mr.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
@@ -387,7 +388,7 @@ $('renderBtn').onclick=async()=>{
   try{
     const[W,H]=dims();const vcfg=await pickVideo(W,H),acfg=await pickAudio();
     if(!vcfg||!acfg)throw new Error('Video encoding is not supported on this device.');
-    const ticket=await api('/api/render-start',{});
+    let ticket;try{ticket=await api('/api/render-start',{});}catch(e){if(/Server error|Failed to fetch|NetworkError/i.test(e.message))ticket={ok:true,watermark:true};else throw e;} // demo hosting without server: watermark on
     $('renderMsg').textContent='Mixing audio…';const mix=await buildMix();
     const muxer=new Mp4Muxer.Muxer({target:new Mp4Muxer.ArrayBufferTarget(),video:{codec:'avc',width:W,height:H},audio:{codec:acfg.mux,numberOfChannels:2,sampleRate:SR},fastStart:'in-memory'});
     let encErr=null;
@@ -409,6 +410,7 @@ $('renderBtn').onclick=async()=>{
     const blob=new Blob([muxer.target.buffer],{type:'video/mp4'}),url=URL.createObjectURL(blob);
     const name=(S.plan.title||'toontake-episode').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.mp4';
     $('out').innerHTML=`<video src="${url}" controls style="max-height:520px"></video><p><a href="${url}" download="${name}"><button>⬇ Download ${esc(name)}</button></a> <span class="muted">${(blob.size/1e6).toFixed(1)} MB</span></p>`;
+    if(window.claude&&window.claude.use){window.claude.use('downloads').then(dl=>{if(!dl)return;const b=document.createElement('button');b.textContent='⬇ Save MP4';b.onclick=async()=>{try{await dl.save({filename:name,data:blob});}catch(e){}};$('out').appendChild(b);}).catch(()=>{});}
     $('prog').style.width='100%';$('renderMsg').innerHTML='<span class="ok">Done!</span>'+(ticket.watermark?' <span class="muted">Free exports carry a small watermark.</span>':'');refreshAccount();
   }catch(err){console.error(err);$('renderMsg').innerHTML=`<span class="err">${esc(err.message||String(err))}</span>`;}
   S.busy=false;$('renderBtn').disabled=false;
