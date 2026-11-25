@@ -49,8 +49,21 @@ $('loginBtn').onclick=async()=>{gateMsg('');try{await NI.login($('email').value.
 $('signupBtn').onclick=async()=>{gateMsg('');const pw=$('password').value;if(pw.length<8)return gateMsg('Use at least 8 characters for your password.');
   try{const u=await NI.signup($('email').value.trim(),pw);if(u&&u.confirmedAt){showGate(null);await refreshAccount();}else gateMsg('Check your email to confirm your account, then log in.',true);}catch(e){gateMsg(e.message||'Signup failed');}};
 $('password').onkeydown=e=>{if(e.key==='Enter')$('loginBtn').click();};
-$('forgot').onclick=async e=>{e.preventDefault();const em=$('email').value.trim();if(!em)return gateMsg('Type your email first.');try{await NI.requestPasswordRecovery(em);gateMsg('Password reset email sent.',true);}catch(err){gateMsg(err.message);}};
-$('resetBtn').onclick=async()=>{try{await NI.updateUser({password:$('newPass').value});gateMsg('Password saved.',true);history.replaceState(null,'','/');setTimeout(()=>showGate(null),800);await refreshAccount();}catch(e){gateMsg(e.message);}};
+$('forgot').onclick=async e=>{
+  e.preventDefault();
+  const em=$('email').value.trim();
+  if(!em){$('forgotHint').style.display='inline';$('email').focus();return gateMsg('Enter your email address above, then click "Forgot password?" again.');}
+  $('forgotHint').style.display='none';
+  try{await NI.requestPasswordRecovery(em);gateMsg('Password reset email sent to '+em+'. Check your inbox.',true);}
+  catch(err){gateMsg(err.message);}
+};
+$('resetBtn').onclick=async()=>{
+  const p1=$('newPass').value,p2=$('confPass').value;
+  if(!p1)return gateMsg('Enter a new password.');
+  if(p1!==p2)return gateMsg('Passwords do not match — try again.');
+  if(p1.length<8)return gateMsg('Use at least 8 characters.');
+  try{await NI.updateUser({password:p1});gateMsg('Password saved.',true);history.replaceState(null,'','/');setTimeout(()=>showGate(null),800);await refreshAccount();}catch(e){gateMsg(e.message);}
+};;
 const doLogout=async()=>{try{await NI.logout();}catch(e){}location.href='/';};
 $('logoutBtn').onclick=$('logoutBtn2').onclick=doLogout;
 $('trialBtn').onclick=async()=>{gateMsg('');$('trialBtn').disabled=true;try{const d=await api('/api/checkout',{});location.href=d.url;}catch(e){gateMsg(e.message);$('trialBtn').disabled=false;}};
@@ -278,6 +291,7 @@ async function findVoices(){
     const hasText=S.lines.some(l=>l.text);
     $('trMsg').innerHTML=`<span class="ok">${S.lines.length} lines, ${spks.length} voice${spks.length>1?'s':''}${hasText?'':' (no words, so captions and AI directing are off)'}</span>`;
     $('planBtn').disabled=!hasText;$('autoBtn').disabled=false;ok=true;
+    $('finetune').open=true;$('finetune').scrollIntoView({behavior:'smooth',block:'nearest'});
   }catch(err){$('trMsg').innerHTML=`<span class="err">${esc(err.message)}</span>`;}
   btn.disabled=false;return ok;
 }
@@ -335,7 +349,7 @@ function applyPlan(p){
   if(!S.plan.scenes.length)S.plan.scenes=[{start:0,set:'living_room',cast:[...new Set(S.lines.map(l=>l.char))]}];
   S.plan.scenes.sort((a,b)=>a.start-b.start);S.plan.scenes[0].start=0;
   for(const f of(p.fx||[]))if(S.lines[f.line]&&FXS.includes(f.fx))S.lines[f.line].fx=f.fx;
-  $('title').value=S.plan.title;$('planNotes').textContent=p.notes||'';
+  $('title').value=S.plan.title;$('planNotes').innerHTML=mdToHTML(p.notes||'');
   renderLines();renderScenes();invalidate();
   $('playBtn').disabled=$('renderBtn').disabled=$('addScene').disabled=false;
   drawAt(0);
@@ -496,6 +510,12 @@ $('goBtn').onclick=async()=>{
 
 function fmt(s){s=Math.max(0,s);const m=Math.floor(s/60),x=Math.floor(s%60);return`${m}:${String(x).padStart(2,'0')}`;}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function mdToHTML(t){
+  // Strip YAML front matter and convert inline markdown to safe HTML for plan notes.
+  t=String(t).replace(/^---[\s\S]*?---\s*/,'').replace(/^#{1,6}\s+/gm,'').replace(/^-{3,}\s*$/gm,'');
+  t=esc(t).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+  return t;
+}
 if(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent))$('doWords').checked=false;
 renderCast();
 window._S=S;window._applyPlan=applyPlan;window._decode=decode;window._envelope=envelope;

@@ -46,17 +46,26 @@ button:active:not(:disabled){transform:translate(2px,2px);box-shadow:1px 1px 0 v
 #gate{position:fixed;inset:0;background:rgba(26,18,16,.92);display:flex;align-items:center;justify-content:center;z-index:9}
 #gate section{max-width:420px}
 video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
+@media(max-width:600px){
+  .line{display:flex;flex-direction:column;gap:4px;padding:8px 6px}
+  .scene{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0}
+  header{flex-wrap:wrap;padding:10px 14px;gap:8px}
+  header span[style*="margin-left:auto"]{margin-left:0!important;order:3;width:100%}
+  main{padding:12px}
+  section{padding:12px 14px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+}
 </style>
 </head>
 <body>
-<div id="gate" style="display:none"><section style="width:min(440px,92vw);position:relative"><button class="sec" id="closeGate" style="position:absolute;right:10px;top:10px;padding:2px 10px">×</button>
+<div id="gate" style="display:none"><section style="width:min(440px,92vw);position:relative"><button class="sec" id="closeGate" style="position:absolute;right:10px;top:10px;padding:2px 10px" aria-label="Close">✕ Close</button>
   <div id="authBox">
     <h2 id="authTitle">Log in or create an account</h2>
     <p class="muted" id="authWhy">Free: 1 export a day with quick auto-direct. Unlimited ($9.99/month): no watermark, AI directing, selfie characters, typed scripts in the MasterBuilder91 voice.</p>
     <div class="row"><input id="email" type="email" placeholder="Email" style="flex:1" autocomplete="email"></div>
     <div class="row"><input id="password" type="password" placeholder="Password (8+ characters)" style="flex:1" autocomplete="current-password"></div>
     <div class="row"><button id="loginBtn">Log in</button><button class="sec" id="signupBtn">Create account</button></div>
-    <p><a href="#" id="forgot" class="muted">Forgot password?</a></p>
+    <p><a href="#" id="forgot" class="muted">Forgot password?</a> <span id="forgotHint" class="muted" style="display:none">— enter your email above first</span></p>
   </div>
   <div id="subBox" style="display:none">
     <h2>Go unlimited</h2>
@@ -66,7 +75,8 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
   </div>
   <div id="resetBox" style="display:none">
     <h2>Choose a new password</h2>
-    <div class="row"><input id="newPass" type="password" placeholder="New password" style="flex:1"></div>
+    <div class="row"><input id="newPass" type="password" placeholder="New password" style="flex:1" autocomplete="new-password"></div>
+    <div class="row"><input id="confPass" type="password" placeholder="Confirm new password" style="flex:1" autocomplete="new-password"></div>
     <div class="row"><button id="resetBtn">Save password</button></div>
   </div>
   <p id="gateMsg" class="err"></p>
@@ -89,7 +99,8 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
 <section>
   <h2><b>2</b>Your audio</h2>
   <p class="muted">One take, all the voices. Your audio never leaves your device. Make each character sound clearly different (higher, lower, raspier). Record close and clean; the app adds distance and room effects.</p>
-  <div class="row"><button class="sec" id="modeRec" style="background:var(--sun)">🎙 Use my voice</button><button class="sec" id="modeType">⌨ Type it instead</button></div>
+  <div class="row"><button class="sec" id="modeRec" style="background:var(--sun)">🎙 Use my voice <span class="muted" style="font-weight:400">(free)</span></button><button class="sec" id="modeType">⌨ Type it instead ✦</button></div>
+  <p class="muted" style="margin:0 0 4px;font-size:12px">✦ = Unlimited plan feature ($9.99/mo)</p>
   <div id="recPane"><div class="row">
     <button id="recBtn">🔴 Record now</button>
     <label class="pill" style="cursor:pointer;padding:9px 14px">📁 Choose a file<input type="file" id="audio" accept="audio/*,video/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" hidden></label>
@@ -123,7 +134,7 @@ video{max-width:100%;border:3px solid var(--ink);border-radius:10px}
   <p class="muted">Voices are split by how they sound (pitch and tone), so exaggerate your character voices. Match each voice to a character and fix any line that went to the wrong person.</p>
   <div id="spkMap" class="row"></div>
   <div class="lines" id="lines"><p class="muted" style="padding:8px">Transcribe your audio first.</p></div>
-  <div class="row"><button id="planBtn" disabled>Direct my episode ✦</button><button class="sec" id="autoBtn" disabled>Quick auto-direct (free)</button><span id="planMsg" class="muted"></span></div>
+  <div class="row"><button id="planBtn" disabled>Direct my episode ✦ (Unlimited)</button><button class="sec" id="autoBtn" disabled>Quick auto-direct (free)</button><span id="planMsg" class="muted"></span></div>
 </section>
 
 <section>
